@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: platform
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Render's free instances spin down after 15 minutes idle; an UptimeRobot monitor on this path keeps it awake.
+    healthCheckPath: /.well-known/alive
+    envVars:
+      - key: GOFR_ENV
+        value: production
+      # Render's proxy sets X-Forwarded-For, so the gateway can rate-limit logins per real client IP.
+      - key: TRUST_FORWARDED_FOR
+        value: "true"
+      # One database per service (e.g. three databases in one Neon project). Fill in on the Render dashboard.
+      - { key: ACCOUNT_DB_NAME,       value: neondb }
+      - { key: ACCOUNT_DB_HOST,       sync: false }
+      - { key: ACCOUNT_DB_USER,       sync: false }
+      - { key: ACCOUNT_DB_PASSWORD,   sync: false }
+      - { key: CATALOGUE_DB_NAME,       value: neondb }
+      - { key: CATALOGUE_DB_HOST,     sync: false }
+      - { key: CATALOGUE_DB_USER,     sync: false }
+      - { key: CATALOGUE_DB_PASSWORD, sync: false }
+      - { key: INVENTORY_DB_NAME,       value: neondb }
+      - { key: INVENTORY_DB_HOST,     sync: false }
+      - { key: INVENTORY_DB_USER,     sync: false }
+      - { key: INVENTORY_DB_PASSWORD, sync: false }
+      # account-svc creates this first admin on startup while there are no users.
+      - { key: ADMIN_EMAIL,           sync: false }
+      - { key: ADMIN_PASSWORD,        sync: false }
+      # No Pub/Sub: catalogue-svc applies approvals to inventory-svc in-process.
+      - { key: SELLER_CHANGE_DELIVERY,   value: direct }

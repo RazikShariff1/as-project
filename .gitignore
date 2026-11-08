@@ -1,0 +1,7 @@
+# build output
+bin/
+# local-only settings (local DB passwords, admin login). configs/.env is shared, secret-free and must be committed.
+.local.env
+# editor / OS
+.idea/
+.DS_Store

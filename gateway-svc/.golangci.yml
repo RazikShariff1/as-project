@@ -1,0 +1,41 @@
+version: "2"
+
+run:
+  timeout: 10m
+
+linters:
+  default: standard
+  enable:
+    - errorlint
+    - funlen
+    - gocognit
+    - gocyclo
+    - gochecknoglobals
+    - gochecknoinits
+    - lll
+    - mnd
+    - noctx
+    - nolintlint
+    - wsl_v5
+  settings:
+    lll:
+      line-length: 140
+    funlen:
+      lines: 100
+      statements: 50
+    gocyclo:
+      min-complexity: 10
+    gocognit:
+      min-complexity: 10
+  exclusions:
+    paths:
+      - migrations
+      - mock_interfaces.go
+
+formatters:
+  enable:
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/zopping/gateway-svc

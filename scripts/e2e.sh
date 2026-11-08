@@ -33,7 +33,7 @@ step() { printf '\n== %s\n' "$1"; }
 
 step "Wake the services and log in as admin"
 curl -s -m 120 -o /dev/null "$BASE/.well-known/alive"
-call 200 POST /account-svc/auth/login "$(jq -n --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')"
+call 201 POST /account-svc/auth/login "$(jq -n --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')"
 ADMIN=$(j .data.token)
 [ "$ADMIN" != null ] && [ -n "$ADMIN" ] || { echo "cannot continue without an admin token"; exit 1; }
 call 200 GET /account-svc/auth/me "" "$ADMIN"
@@ -53,7 +53,8 @@ call 201 POST /catalogue-svc/brand "$(jq -n --arg n "E2E Brand $RUN" '{name:$n,s
 call 201 POST /catalogue-svc/category "$(jq -n --arg n "E2E Category $RUN" '{name:$n,status:"ENABLED"}')" "$ADMIN";    CAT=$(j .data.id)
 call 201 POST /catalogue-svc/product "$(jq -n --arg n "E2E Rice $RUN" --argjson c "$CAT" --argjson b "$BRAND" \
   '{name:$n,primaryCategoryId:$c,categoryIds:[$c],brandId:$b,status:"ENABLED"}')" "$ADMIN";                            PRODUCT=$(j .data.id)
-call 201 POST /catalogue-svc/variant "$(jq -n --argjson p "$PRODUCT" --arg n "1 kg $RUN" '{productId:$p,name:$n,status:"ENABLED"}')" "$ADMIN"; VARIANT=$(j .data.id)
+call 201 POST /catalogue-svc/variant "$(jq -n --argjson p "$PRODUCT" --arg n "1 kg $RUN" --arg c "E2E-$RUN" \
+  '{productId:$p,name:$n,clientItemId:$c,status:"ENABLED"}')" "$ADMIN"; VARIANT=$(j .data.id)
 call 200 GET "/catalogue-svc/product/$PRODUCT"
 call 200 GET "/catalogue-svc/variant/$VARIANT"
 
@@ -74,7 +75,7 @@ step "Two customers"
 for n in 1 2; do
   call 201 POST /account-svc/user "$(jq -n --arg e "e2e-$RUN-$n@example.com" --argjson r "$CUSTOMER_ROLE" \
     '{name:"E2E Customer",email:$e,phone:"9999999999",password:"E2e-Passw0rd!",status:"active",attributes:{},roleIds:[$r]}')" "$ADMIN"
-  call 200 POST /account-svc/auth/login "$(jq -n --arg e "e2e-$RUN-$n@example.com" '{email:$e,password:"E2e-Passw0rd!"}')"
+  call 201 POST /account-svc/auth/login "$(jq -n --arg e "e2e-$RUN-$n@example.com" '{email:$e,password:"E2e-Passw0rd!"}')"
   eval "C$n=$(j .data.token)"
 done
 

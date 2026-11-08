@@ -15,6 +15,7 @@ func Backends() map[string]string {
 		"account-svc":   "ACCOUNT_SVC_URL",
 		"catalogue-svc": "CATALOGUE_SVC_URL",
 		"inventory-svc": "INVENTORY_SVC_URL",
+		"order-svc":     "ORDER_SVC_URL",
 	}
 }
 
@@ -39,6 +40,7 @@ var defaultURLs = map[string]string{
 	"ACCOUNT_SVC_URL":   "http://localhost:8083",
 	"CATALOGUE_SVC_URL": "http://localhost:8081",
 	"INVENTORY_SVC_URL": "http://localhost:8082",
+	"ORDER_SVC_URL":     "http://localhost:8084",
 }
 
 // Load reads and validates the settings.

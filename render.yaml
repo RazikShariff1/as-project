@@ -23,9 +23,13 @@ services:
       - { key: CATALOGUE_DB_USER,     sync: false }
       - { key: CATALOGUE_DB_PASSWORD, sync: false }
       - { key: INVENTORY_DB_NAME,       value: neondb }
+      - { key: ORDER_DB_NAME,           value: neondb }
       - { key: INVENTORY_DB_HOST,     sync: false }
       - { key: INVENTORY_DB_USER,     sync: false }
       - { key: INVENTORY_DB_PASSWORD, sync: false }
+      - { key: ORDER_DB_HOST,           sync: false }
+      - { key: ORDER_DB_USER,           sync: false }
+      - { key: ORDER_DB_PASSWORD,       sync: false }
       # account-svc creates this first admin on startup while there are no users.
       - { key: ADMIN_EMAIL,           sync: false }
       - { key: ADMIN_PASSWORD,        sync: false }

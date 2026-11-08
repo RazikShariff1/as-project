@@ -115,7 +115,7 @@ func TestSeedRegistersEveryEndpointAndRole(t *testing.T) {
 		names = append(names, r["name"].(string))
 	}
 
-	assert.ElementsMatch(t, []string{"admin", "seller", "catalogue-manager"}, names)
+	assert.ElementsMatch(t, []string{"admin", "seller", "catalogue-manager", "customer", "order-manager"}, names)
 }
 
 func TestSeedIsIdempotentAndRewritesGrantsEachTime(t *testing.T) {

@@ -25,6 +25,7 @@ const (
 	catalogue = "catalogue-svc"
 	inventory = "inventory-svc"
 	account   = "account-svc"
+	orders    = "order-svc"
 )
 
 func ep(service, method, path, description string) Endpoint {
@@ -76,6 +77,15 @@ func Endpoints() []Endpoint {
 		ep(inventory, "GET", "/reservation/{orderRef}", "Get a reservation"),
 		ep(inventory, "PUT", "/reservation/{orderRef}/confirm", "Confirm a reservation"),
 		ep(inventory, "PUT", "/reservation/{orderRef}/release", "Release a reservation"),
+
+		// order-svc: customers act on their own orders (order-svc limits them to those); staff on all
+		ep(orders, "POST", "/order", "Place an order"),
+		ep(orders, "GET", "/order", "List orders"),
+		ep(orders, "GET", "/order/{id}", "Get an order"),
+		ep(orders, "GET", "/order/{id}/log", "An order's history"),
+		ep(orders, "PUT", "/order/{id}/cancel", "Cancel an order that has not been packed"),
+		ep(orders, "PUT", "/order/{id}/status", "Move an order to its next status"),
+		ep(orders, "PUT", "/order/{id}/payment-status", "Record an order's payment outcome"),
 
 		// account-svc: user, role and endpoint management, and self-service
 		ep(account, "GET", "/user", "List users"),
@@ -139,6 +149,13 @@ func Roles() []Role {
 		[2]string{"GET", "/seller-product-request"}, [2]string{"GET", "/seller-product-request/{id}"},
 		[2]string{"PUT", "/seller-product-request/{id}/approval"}, [2]string{"PUT", "/seller-product-request/{id}/visibility"})
 
+	customer := grant(orders,
+		[2]string{"POST", "/order"}, [2]string{"GET", "/order"}, [2]string{"GET", "/order/{id}"},
+		[2]string{"GET", "/order/{id}/log"}, [2]string{"PUT", "/order/{id}/cancel"})
+
+	orderManager := append(append([]string{}, customer...), grant(orders,
+		[2]string{"PUT", "/order/{id}/status"}, [2]string{"PUT", "/order/{id}/payment-status"})...)
+
 	return []Role{
 		{Name: "admin", Description: "Full access", AllAccess: true},
 		{
@@ -150,6 +167,16 @@ func Roles() []Role {
 			Name:        "catalogue-manager",
 			Description: "Staff who curate the catalogue, decide who may sell what, and review seller requests (needs sellerScope all)",
 			Grants:      manager,
+		},
+		{
+			Name:        "customer",
+			Description: "A shopper: places, views and cancels their own orders (order-svc limits them to their own)",
+			Grants:      customer,
+		},
+		{
+			Name:        "order-manager",
+			Description: "Staff who run orders: see every order and move it through its statuses (needs sellerScope all)",
+			Grants:      orderManager,
 		},
 	}
 }

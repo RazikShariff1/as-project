@@ -32,7 +32,7 @@ func TestEveryEndpointIsUniqueAndWellFormed(t *testing.T) {
 		assert.NotEmpty(t, e.Description, e.Key())
 		assert.True(t, strings.HasPrefix(e.Path, "/"), e.Key())
 		assert.Contains(t, []string{"GET", "POST", "PUT", "PATCH", "DELETE"}, e.Method, e.Key())
-		assert.Contains(t, []string{"account-svc", "catalogue-svc", "inventory-svc"}, e.Service, e.Key())
+		assert.Contains(t, []string{"account-svc", "catalogue-svc", "inventory-svc", "order-svc"}, e.Service, e.Key())
 	}
 }
 
@@ -76,7 +76,7 @@ func TestRolesAreWellFormed(t *testing.T) {
 		}
 	}
 
-	assert.True(t, names["admin"] && names["seller"] && names["catalogue-manager"])
+	assert.True(t, names["admin"] && names["seller"] && names["catalogue-manager"] && names["customer"] && names["order-manager"])
 }
 
 func grants(name string) map[string]bool {
@@ -140,4 +140,27 @@ func TestCatalogueManagerHasNoInventoryOrAccountAccess(t *testing.T) {
 	}
 
 	assert.True(t, grants("catalogue-manager")[Key("catalogue-svc", "PUT", "/seller-product-request/{id}/approval")])
+}
+
+func TestACustomerCanOrderButNotRunOrders(t *testing.T) {
+	g := grants("customer")
+
+	for _, r := range [][2]string{{"POST", "/order"}, {"GET", "/order"}, {"GET", "/order/{id}"}, {"GET", "/order/{id}/log"}, {"PUT", "/order/{id}/cancel"}} {
+		assert.True(t, g[Key("order-svc", r[0], r[1])], "%v", r)
+	}
+
+	assert.False(t, g[Key("order-svc", "PUT", "/order/{id}/status")], "only staff move an order through its statuses")
+	assert.False(t, g[Key("order-svc", "PUT", "/order/{id}/payment-status")], "only staff and payment-svc record payment")
+
+	for k := range g {
+		assert.True(t, strings.HasPrefix(k, "order-svc "), "a customer should only touch orders, got %s", k)
+	}
+}
+
+func TestAnOrderManagerCanRunOrders(t *testing.T) {
+	g := grants("order-manager")
+
+	assert.True(t, g[Key("order-svc", "PUT", "/order/{id}/status")])
+	assert.True(t, g[Key("order-svc", "PUT", "/order/{id}/payment-status")])
+	assert.True(t, g[Key("order-svc", "GET", "/order")])
 }

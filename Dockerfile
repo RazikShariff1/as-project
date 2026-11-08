@@ -15,6 +15,13 @@ WORKDIR /app
 COPY --from=build /out/ /app/
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh && chown -R app /app
+# Non-secret defaults, so the image works even if the platform only supplies secrets. Dashboard values override these.
+ENV GOFR_ENV=production \
+    TRUST_FORWARDED_FOR=true \
+    SELLER_CHANGE_DELIVERY=direct \
+    ACCOUNT_DB_NAME=neondb \
+    CATALOGUE_DB_NAME=neondb \
+    INVENTORY_DB_NAME=neondb
 USER app
 EXPOSE 10000
 CMD ["/app/start.sh"]

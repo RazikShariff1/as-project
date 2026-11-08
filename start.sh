@@ -15,6 +15,8 @@ run() {
 DB_PASSWORD=\${${p}_DB_PASSWORD:-} DB_SSL_MODE=\${${p}_DB_SSL_MODE:-require}"
     # Optional: override the database name from configs/.env (a separate Neon project's database is called "neondb").
     eval "[ -z \"\${${p}_DB_NAME:-}\" ] || export DB_NAME=\"\${${p}_DB_NAME}\""
+    # With in-process delivery there is no broker: stop configs/.env (PUBSUB_BACKEND=GOOGLE) from starting Pub/Sub.
+    if [ "$svc" = catalogue-svc ] && [ "${SELLER_CHANGE_DELIVERY:-pubsub}" = direct ]; then export PUBSUB_BACKEND=""; fi
     [ -n "$DB_HOST" ] || { echo "$svc: ${p}_DB_HOST is not set" >&2; exit 1; }
     exec "./$svc"
   ) &

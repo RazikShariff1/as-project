@@ -145,12 +145,17 @@ func TestCatalogueManagerHasNoInventoryOrAccountAccess(t *testing.T) {
 func TestACustomerCanOrderButNotRunOrders(t *testing.T) {
 	g := grants("customer")
 
-	for _, r := range [][2]string{{"POST", "/order"}, {"GET", "/order"}, {"GET", "/order/{id}"}, {"GET", "/order/{id}/log"}, {"PUT", "/order/{id}/cancel"}} {
+	for _, r := range [][2]string{{"POST", "/order"}, {"GET", "/order"}, {"GET", "/order/{refNum}"}, {"GET", "/order-log"},
+		{"PATCH", "/order/{refNum}"}} {
 		assert.True(t, g[Key("order-svc", r[0], r[1])], "%v", r)
 	}
 
-	assert.False(t, g[Key("order-svc", "PUT", "/order/{id}/status")], "only staff move an order through its statuses")
-	assert.False(t, g[Key("order-svc", "PUT", "/order/{id}/payment-status")], "only staff and payment-svc record payment")
+	assert.False(t, g[Key("order-svc", "POST", "/order-log")], "customers read their order's history but do not write it")
+
+	// There is no separate cancel, status or payment call any more; order-svc limits what a customer's PATCH may do.
+	for _, old := range []string{"/order/{id}/cancel", "/order/{id}/status", "/order/{id}/payment-status"} {
+		assert.False(t, g[Key("order-svc", "PUT", old)], old)
+	}
 
 	for k := range g {
 		assert.True(t, strings.HasPrefix(k, "order-svc "), "a customer should only touch orders, got %s", k)
@@ -160,7 +165,7 @@ func TestACustomerCanOrderButNotRunOrders(t *testing.T) {
 func TestAnOrderManagerCanRunOrders(t *testing.T) {
 	g := grants("order-manager")
 
-	assert.True(t, g[Key("order-svc", "PUT", "/order/{id}/status")])
-	assert.True(t, g[Key("order-svc", "PUT", "/order/{id}/payment-status")])
+	assert.True(t, g[Key("order-svc", "PATCH", "/order/{refNum}")])
 	assert.True(t, g[Key("order-svc", "GET", "/order")])
+	assert.True(t, g[Key("order-svc", "POST", "/order-log")], "staff add entries to an order's history")
 }

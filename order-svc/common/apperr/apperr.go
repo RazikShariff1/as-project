@@ -12,6 +12,8 @@ var (
 	ErrNotFound = errors.New("not found")
 	// ErrConflict means a uniqueness constraint was violated or the request clashes with current state.
 	ErrConflict = errors.New("already exists")
+	// ErrDuplicateClient means an order with the same customer and client id already exists: the request is a retry.
+	ErrDuplicateClient = errors.New("an order with this clientId already exists")
 	// ErrInvalid means an id was malformed or a value broke a constraint.
 	ErrInvalid = errors.New("invalid id or reference")
 )

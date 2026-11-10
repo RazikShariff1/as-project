@@ -36,93 +36,189 @@ func (m *MockOrder) EXPECT() *MockOrderMockRecorder {
 	return m.recorder
 }
 
-// Create mocks base method.
-func (m *MockOrder) Create(ctx *gofr.Context, o *models.Order, userID *int64) (models.Order, error) {
+// ClearStaleRef mocks base method.
+func (m *MockOrder) ClearStaleRef(ctx *gofr.Context, ref int64, staleRef string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", ctx, o, userID)
-	ret0, _ := ret[0].(models.Order)
+	ret := m.ctrl.Call(m, "ClearStaleRef", ctx, ref, staleRef)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ClearStaleRef indicates an expected call of ClearStaleRef.
+func (mr *MockOrderMockRecorder) ClearStaleRef(ctx, ref, staleRef interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearStaleRef", reflect.TypeOf((*MockOrder)(nil).ClearStaleRef), ctx, ref, staleRef)
+}
+
+// Count mocks base method.
+func (m *MockOrder) Count(ctx *gofr.Context, f *filters.OrderDetails) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Count", ctx, f)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Count indicates an expected call of Count.
+func (mr *MockOrderMockRecorder) Count(ctx, f interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Count", reflect.TypeOf((*MockOrder)(nil).Count), ctx, f)
+}
+
+// Create mocks base method.
+func (m *MockOrder) Create(ctx *gofr.Context, o *models.Order) (*models.Order, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Create", ctx, o)
+	ret0, _ := ret[0].(*models.Order)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockOrderMockRecorder) Create(ctx, o, userID interface{}) *gomock.Call {
+func (mr *MockOrderMockRecorder) Create(ctx, o interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockOrder)(nil).Create), ctx, o, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockOrder)(nil).Create), ctx, o)
 }
 
-// Get mocks base method.
-func (m *MockOrder) Get(ctx *gofr.Context, id int64) (models.Order, error) {
+// GetByClientID mocks base method.
+func (m *MockOrder) GetByClientID(ctx *gofr.Context, customerID int64, clientID string) (*models.Order, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", ctx, id)
-	ret0, _ := ret[0].(models.Order)
+	ret := m.ctrl.Call(m, "GetByClientID", ctx, customerID, clientID)
+	ret0, _ := ret[0].(*models.Order)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Get indicates an expected call of Get.
-func (mr *MockOrderMockRecorder) Get(ctx, id interface{}) *gomock.Call {
+// GetByClientID indicates an expected call of GetByClientID.
+func (mr *MockOrderMockRecorder) GetByClientID(ctx, customerID, clientID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockOrder)(nil).Get), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByClientID", reflect.TypeOf((*MockOrder)(nil).GetByClientID), ctx, customerID, clientID)
 }
 
-// List mocks base method.
-func (m *MockOrder) List(ctx *gofr.Context, f *filters.OrderFilter) ([]models.Order, int, error) {
+// Index mocks base method.
+func (m *MockOrder) Index(ctx *gofr.Context, f *filters.OrderDetails, limit, offset int) ([]*models.Order, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "List", ctx, f)
-	ret0, _ := ret[0].([]models.Order)
-	ret1, _ := ret[1].(int)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// List indicates an expected call of List.
-func (mr *MockOrderMockRecorder) List(ctx, f interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockOrder)(nil).List), ctx, f)
-}
-
-// Logs mocks base method.
-func (m *MockOrder) Logs(ctx *gofr.Context, id int64) ([]models.OrderLog, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Logs", ctx, id)
-	ret0, _ := ret[0].([]models.OrderLog)
+	ret := m.ctrl.Call(m, "Index", ctx, f, limit, offset)
+	ret0, _ := ret[0].([]*models.Order)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Logs indicates an expected call of Logs.
-func (mr *MockOrderMockRecorder) Logs(ctx, id interface{}) *gomock.Call {
+// Index indicates an expected call of Index.
+func (mr *MockOrderMockRecorder) Index(ctx, f, limit, offset interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Logs", reflect.TypeOf((*MockOrder)(nil).Logs), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Index", reflect.TypeOf((*MockOrder)(nil).Index), ctx, f, limit, offset)
 }
 
-// SetPaymentStatus mocks base method.
-func (m *MockOrder) SetPaymentStatus(ctx *gofr.Context, id int64, status, note string, userID *int64) (models.Order, error) {
+// Retrieve mocks base method.
+func (m *MockOrder) Retrieve(ctx *gofr.Context, ref int64) (*models.Order, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetPaymentStatus", ctx, id, status, note, userID)
-	ret0, _ := ret[0].(models.Order)
+	ret := m.ctrl.Call(m, "Retrieve", ctx, ref)
+	ret0, _ := ret[0].(*models.Order)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// SetPaymentStatus indicates an expected call of SetPaymentStatus.
-func (mr *MockOrderMockRecorder) SetPaymentStatus(ctx, id, status, note, userID interface{}) *gomock.Call {
+// Retrieve indicates an expected call of Retrieve.
+func (mr *MockOrderMockRecorder) Retrieve(ctx, ref interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPaymentStatus", reflect.TypeOf((*MockOrder)(nil).SetPaymentStatus), ctx, id, status, note, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Retrieve", reflect.TypeOf((*MockOrder)(nil).Retrieve), ctx, ref)
 }
 
-// Transition mocks base method.
-func (m *MockOrder) Transition(ctx *gofr.Context, id int64, allowed []string, to, note string, userID *int64) (models.Order, error) {
+// Update mocks base method.
+func (m *MockOrder) Update(ctx *gofr.Context, ref int64, o *models.Order) (*models.Order, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Transition", ctx, id, allowed, to, note, userID)
-	ret0, _ := ret[0].(models.Order)
+	ret := m.ctrl.Call(m, "Update", ctx, ref, o)
+	ret0, _ := ret[0].(*models.Order)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Transition indicates an expected call of Transition.
-func (mr *MockOrderMockRecorder) Transition(ctx, id, allowed, to, note, userID interface{}) *gomock.Call {
+// Update indicates an expected call of Update.
+func (mr *MockOrderMockRecorder) Update(ctx, ref, o interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Transition", reflect.TypeOf((*MockOrder)(nil).Transition), ctx, id, allowed, to, note, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockOrder)(nil).Update), ctx, ref, o)
+}
+
+// MockOrderLog is a mock of OrderLog interface.
+type MockOrderLog struct {
+	ctrl     *gomock.Controller
+	recorder *MockOrderLogMockRecorder
+}
+
+// MockOrderLogMockRecorder is the mock recorder for MockOrderLog.
+type MockOrderLogMockRecorder struct {
+	mock *MockOrderLog
+}
+
+// NewMockOrderLog creates a new mock instance.
+func NewMockOrderLog(ctrl *gomock.Controller) *MockOrderLog {
+	mock := &MockOrderLog{ctrl: ctrl}
+	mock.recorder = &MockOrderLogMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockOrderLog) EXPECT() *MockOrderLogMockRecorder {
+	return m.recorder
+}
+
+// Count mocks base method.
+func (m *MockOrderLog) Count(ctx *gofr.Context, f *filters.OrderLog) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Count", ctx, f)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Count indicates an expected call of Count.
+func (mr *MockOrderLogMockRecorder) Count(ctx, f interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Count", reflect.TypeOf((*MockOrderLog)(nil).Count), ctx, f)
+}
+
+// Create mocks base method.
+func (m *MockOrderLog) Create(ctx *gofr.Context, l *models.OrderLog) (*models.OrderLog, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Create", ctx, l)
+	ret0, _ := ret[0].(*models.OrderLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Create indicates an expected call of Create.
+func (mr *MockOrderLogMockRecorder) Create(ctx, l interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockOrderLog)(nil).Create), ctx, l)
+}
+
+// Find mocks base method.
+func (m *MockOrderLog) Find(ctx *gofr.Context, f *filters.OrderLog) ([]*models.OrderLog, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Find", ctx, f)
+	ret0, _ := ret[0].([]*models.OrderLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Find indicates an expected call of Find.
+func (mr *MockOrderLogMockRecorder) Find(ctx, f interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockOrderLog)(nil).Find), ctx, f)
+}
+
+// GetOrderID mocks base method.
+func (m *MockOrderLog) GetOrderID(ctx *gofr.Context, referenceNumber int64) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrderID", ctx, referenceNumber)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrderID indicates an expected call of GetOrderID.
+func (mr *MockOrderLogMockRecorder) GetOrderID(ctx, referenceNumber interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrderID", reflect.TypeOf((*MockOrderLog)(nil).GetOrderID), ctx, referenceNumber)
 }

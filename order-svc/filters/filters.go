@@ -4,7 +4,12 @@ package filters
 import (
 	"fmt"
 	"strings"
+
+	"github.com/lib/pq"
 )
+
+// pqArray adapts a slice for an `= ANY($n)` placeholder.
+func pqArray(v any) any { return pq.Array(v) }
 
 // where accumulates SQL conditions with Postgres $n placeholders.
 type where struct {

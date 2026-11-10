@@ -8,17 +8,34 @@ import (
 	"github.com/zopping/order-svc/models"
 )
 
-// Order is the data-access contract for orders, their items and their history.
+// Order is the data-access contract for orders and their items. Orders are addressed by reference number.
 type Order interface {
-	// Create stores an order with its items and a PLACED log entry in one transaction.
-	Create(ctx *gofr.Context, o *models.Order, userID *int64) (models.Order, error)
-	Get(ctx *gofr.Context, id int64) (models.Order, error)
-	// List returns a page of orders (without items) and the total number matching the filter.
-	List(ctx *gofr.Context, f *filters.OrderFilter) ([]models.Order, int, error)
-	// Transition locks the order and moves it to status to, if its current status is one of allowed (else a StateConflict). A
-	// delivered COD order is marked paid in the same transaction. For CANCELLED the note is kept as the cancel reason.
-	Transition(ctx *gofr.Context, id int64, allowed []string, to, note string, userID *int64) (models.Order, error)
-	// SetPaymentStatus records the payment outcome and logs it.
-	SetPaymentStatus(ctx *gofr.Context, id int64, status, note string, userID *int64) (models.Order, error)
-	Logs(ctx *gofr.Context, id int64) ([]models.OrderLog, error)
+	// Index returns a page of orders with their items, newest first.
+	Index(ctx *gofr.Context, f *filters.OrderDetails, limit, offset int) ([]*models.Order, error)
+	// Count returns how many orders match the filter.
+	Count(ctx *gofr.Context, f *filters.OrderDetails) (int, error)
+	// Retrieve returns one order with its items, or apperr.ErrNotFound.
+	Retrieve(ctx *gofr.Context, ref int64) (*models.Order, error)
+	// GetByClientID returns the customer's order placed with that client id, or apperr.ErrNotFound.
+	GetByClientID(ctx *gofr.Context, customerID int64, clientID string) (*models.Order, error)
+	// Create stores an order with its items and its OrderLogs in one transaction. A repeated (customer, client id) is
+	// apperr.ErrDuplicateClient.
+	Create(ctx *gofr.Context, o *models.Order) (*models.Order, error)
+	// Update saves the order as given, its items and its new OrderLogs in one transaction, and returns it as stored. o.UpdatedAt
+	// must be the value the order was read with: if the order was saved by someone else since, nothing is written and the answer
+	// is a StateConflict.
+	Update(ctx *gofr.Context, ref int64, o *models.Order) (*models.Order, error)
+	// ClearStaleRef forgets a replaced reservation once inventory-svc has released it.
+	ClearStaleRef(ctx *gofr.Context, ref int64, staleRef string) error
+}
+
+// OrderLog is the data-access contract for an order's history.
+type OrderLog interface {
+	// Create appends an entry to an existing order and returns it as stored.
+	Create(ctx *gofr.Context, l *models.OrderLog) (*models.OrderLog, error)
+	// GetOrderID returns the id of the order with that reference number, or apperr.ErrNotFound.
+	GetOrderID(ctx *gofr.Context, referenceNumber int64) (int64, error)
+	Count(ctx *gofr.Context, f *filters.OrderLog) (int, error)
+	// Find returns the entries matching the filter, newest first.
+	Find(ctx *gofr.Context, f *filters.OrderLog) ([]*models.OrderLog, error)
 }

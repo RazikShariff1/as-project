@@ -11,24 +11,35 @@ curl localhost:8084/.well-known/health
 
 ## API
 
-Paths are singular. Lists take `limit` (default 20, max 100), `page` and `offset`. Responses are wrapped by GoFr as `{"data": ...}`.
-Everything goes through the gateway as `/api/order-svc/...`.
+Paths are singular and orders are addressed by `referenceNumber`, as in the reference order-service. Single orders answer as
+`{"data": {"order": {...}}}` and lists as `{"data": {"count", "limit", "offset", "order": [...]}}`. Everything goes through the gateway
+as `/api/order-svc/...`.
 
 | Call | Who | What |
 |---|---|---|
-| `POST /order` | customer, staff | Place an order: `items[{variantId, sellerId, quantity}]`, `deliveryAddress`, optional `paymentMethod` (`COD`), `notes`. Staff also send `customerId` |
-| `GET /order` | customer (own), staff (all) | List newest first. Filters `status`, `customerId` (staff) |
-| `GET /order/{id}` | owner, staff | One order with its items |
-| `GET /order/{id}/log` | owner, staff | History of status and payment changes |
-| `PUT /order/{id}/cancel` | owner, staff | Cancel a `PLACED` or `CONFIRMED` order and release its stock. Body `{"reason"}` |
-| `PUT /order/{id}/status` | staff | `CONFIRMED`, `PACKED`, `OUT_FOR_DELIVERY`, `DELIVERED`, in that order |
-| `PUT /order/{id}/payment-status` | staff, payment-svc | `PENDING`, `PAID`, `FAILED`, `REFUNDED` |
+| `POST /order` | customer, staff | Place an order: `items[{variantId, sellerId, quantity}]`, `deliveryAddress`, optional `paymentMethod` (`COD`), `notes`, `metaData`, `clientId`. Staff also send `customerId`. Placing again with the same `clientId` returns the existing order |
+| `GET /order` | customer (own), staff (all) | Newest first (by reference number). Filters: `id`, `referenceNumber` and `status` (comma lists), `paymentStatus`, `customerId` (staff), `sellerID` (orders with that seller's items), `placedBetween=from,to` and `completedBetween=from,to` (dates, both inclusive), `updatedSince` (RFC 3339, or a date or date-time taken as UTC). Paging: `limit` (default 20, max 100) with `offset`, or the legacy `page` with `perPage`; `paginated=false` returns up to 1000 |
+| `GET /order/{refNum}` | owner, staff | One order with its items |
+| `PATCH /order/{refNum}` | see below | Change an order; every field is optional and all of them apply together or not at all |
+| `GET /order-log?orderReferenceNumber=` | owner, staff | History, newest first: `{limit, offset, count, orderlog:[{id, orderId, userId, action, details, createdAt}], order:{clientId}}`; optional `action` filter. An order that is not the caller's has an empty history |
+| `POST /order-log` | staff | Add an entry: `{referenceNumber, action, details:{...}}`; answers `{"id"}`. STATUS, PAYMENT, ITEM and UPDATE are the system's own actions |
 
-Lifecycle: `PLACED → CONFIRMED → PACKED → OUT_FOR_DELIVERY → DELIVERED`, or `CANCELLED` from `PLACED` or `CONFIRMED`. Stock is
-reserved when the order is placed, confirmed as a sale when it is `PACKED`, and released on cancel. Delivering a COD order marks it `PAID`.
+`PATCH /order/{refNum}` body:
+
+| Field | Who | Effect |
+|---|---|---|
+| `status` | staff; a customer may only send `CANCELLED` on their own order | `PACKED`, `DISPATCHED`, `COMPLETED` in that order, or `CANCELLED` from `PENDING` |
+| `cancellationReason`, `note` | as above | Kept with the order / written to its history |
+| `paymentStatus` | staff, payment-svc | `PENDING`, `PAID`, `CANCELLED`, `REFUND` |
+| `orderItems[{orderItemId, quantity, reason}]` | staff | While `PENDING`: set a line's quantity; `0` removes it (the last line cannot be removed: cancel instead) |
+| `deliveryAddress`, `notes` | owner, staff | Until the order is dispatched |
+| `metaData` | staff | Merged into the order's metadata |
+
+Lifecycle: `PENDING → PACKED → DISPATCHED → COMPLETED`, or `CANCELLED` from `PENDING`. There are no in-store processing statuses (picking,
+checking). Stock is reserved when the order is placed, confirmed as a sale when it is `PACKED`, and released on cancel. Completing a COD order marks it `PAID`.
 
 If inventory-svc fails after a status is saved (`PACKED` or `CANCELLED`), the call returns an error but the status stays. Repeat the same
-call to retry just the stock step.
+PATCH to retry just the stock step.
 
 ## Configuration
 

@@ -83,39 +83,47 @@ ADDR='{"name":"Asha","phone":"9999999999","line1":"1 Main St","city":"Pune","pin
 ORDER_BODY=$(jq -n --argjson v "$VARIANT" --argjson s "$SELLER" --argjson a "$ADDR" '{items:[{variantId:$v,sellerId:$s,quantity:2}],deliveryAddress:$a}')
 
 step "Orders: place, read, list (customer 1)"
-call 201 POST /order-svc/order "$ORDER_BODY" "$C1"; O1=$(j .data.id)
-echo "   total=$(j .data.total) status=$(j .data.status) payment=$(j .data.paymentStatus)  (expect 200 / PLACED / PENDING)"
+call 201 POST /order-svc/order "$ORDER_BODY" "$C1"; O1=$(j .data.order.referenceNumber)
+echo "   total=$(j .data.order.total) status=$(j .data.order.status) payment=$(j .data.order.paymentStatus)  (expect 200 / PENDING / PENDING)"
 call 200 GET "/order-svc/order/$O1" "" "$C1"
 call 200 GET /order-svc/order "" "$C1"
-call 200 GET "/order-svc/order/$O1/log" "" "$C1"
+call 200 GET "/order-svc/order-log?orderReferenceNumber=$O1" "" "$C1"
+call 200 GET "/order-svc/order-log?orderReferenceNumber=$O1" "" "$C2"
+echo "   other customer sees $(j .data.count) history entries (expect 0)"
+call 400 GET "/order-svc/order-log" "" "$C1"
 call 200 GET "/inventory-svc/stock/availability?variantIds=$VARIANT"
 echo "   available=$(j '.data[0].bestOffer.available') (expect 8: two units are held)"
 
 step "Isolation and rules"
 call 404 GET "/order-svc/order/$O1" "" "$C2"
-call 403 PUT "/order-svc/order/$O1/status" '{"status":"CONFIRMED"}' "$C1"
+call 403 PATCH "/order-svc/order/$O1" '{"status":"PACKED"}' "$C1"
+call 404 PATCH "/order-svc/order/$O1" '{"status":"CANCELLED"}' "$C2"
 call 409 POST /order-svc/order "$(echo "$ORDER_BODY" | jq '.items[0].quantity=999')" "$C1"
 call 400 POST /order-svc/order '{"items":[]}' "$C1"
 call 401 GET /order-svc/order
 
 step "Cancel releases the stock (customer 1)"
-call 200 PUT "/order-svc/order/$O1/cancel" '{"reason":"changed my mind"}' "$C1"
+call 200 PATCH "/order-svc/order/$O1" '{"status":"CANCELLED","cancellationReason":"changed my mind"}' "$C1"
 call 200 GET "/inventory-svc/stock/availability?variantIds=$VARIANT"
 echo "   available=$(j '.data[0].bestOffer.available') (expect 10 again)"
-call 409 PUT "/order-svc/order/$O1/cancel" '{}' "$C1" || true
+call 200 PATCH "/order-svc/order/$O1" '{"status":"CANCELLED"}' "$C1"  # repeating only retries the stock release
 
 step "Full lifecycle (customer 2, admin moves it)"
-call 201 POST /order-svc/order "$ORDER_BODY" "$C2"; O2=$(j .data.id); C2ID=$(j .data.customerId)
-for s in CONFIRMED PACKED OUT_FOR_DELIVERY DELIVERED; do
-  call 200 PUT "/order-svc/order/$O2/status" "{\"status\":\"$s\"}" "$ADMIN"
+call 201 POST /order-svc/order "$ORDER_BODY" "$C2"; O2=$(j .data.order.referenceNumber); C2ID=$(j .data.order.customerId)
+call 200 PATCH "/order-svc/order/$O2" '{"notes":"leave at the gate","metaData":{"source":"e2e"}}' "$ADMIN"
+call 409 PATCH "/order-svc/order/$O2" '{"status":"COMPLETED"}' "$ADMIN"
+for s in PACKED DISPATCHED COMPLETED; do
+  call 200 PATCH "/order-svc/order/$O2" "{\"status\":\"$s\"}" "$ADMIN"
 done
-echo "   payment=$(j .data.paymentStatus) (expect PAID: cash on delivery)"
+echo "   payment=$(j .data.order.paymentStatus) (expect PAID: cash on delivery)"
 call 200 GET "/inventory-svc/stock/$VARIANT/seller/$SELLER" "" "$ADMIN"
 echo "   quantity=$(j .data.quantity) reserved=$(j .data.reserved) (expect 8 / 0: two units sold)"
 call 200 GET "/order-svc/order?customerId=$C2ID" "" "$ADMIN"
-call 409 PUT "/order-svc/order/$O2/cancel" '{}' "$C2"
-call 200 GET "/order-svc/order/$O2/log" "" "$C2"
-echo "   history entries=$(j '.data | length') (expect 6: placed, 4 statuses, 1 payment)"
+call 409 PATCH "/order-svc/order/$O2" '{"status":"CANCELLED"}' "$C2"
+call 403 POST /order-svc/order-log "{\"referenceNumber\":$O2,\"action\":\"NOTE\",\"details\":{\"note\":\"x\"}}" "$C2"
+call 201 POST /order-svc/order-log "{\"referenceNumber\":$O2,\"action\":\"NOTE\",\"details\":{\"note\":\"called the customer\"}}" "$ADMIN"
+call 200 GET "/order-svc/order-log?orderReferenceNumber=$O2" "" "$C2"
+echo "   history entries=$(j '.data.count') (expect 7: pending, 3 statuses, 1 payment, 1 update, 1 note)"
 
 printf '\n%s\n' "$([ "$FAILS" = 0 ] && echo 'ALL CHECKS PASSED' || echo "$FAILS CHECK(S) FAILED")"
 exit "$FAILS"

@@ -81,11 +81,12 @@ func Endpoints() []Endpoint {
 		// order-svc: customers act on their own orders (order-svc limits them to those); staff on all
 		ep(orders, "POST", "/order", "Place an order"),
 		ep(orders, "GET", "/order", "List orders"),
-		ep(orders, "GET", "/order/{id}", "Get an order"),
-		ep(orders, "GET", "/order/{id}/log", "An order's history"),
-		ep(orders, "PUT", "/order/{id}/cancel", "Cancel an order that has not been packed"),
-		ep(orders, "PUT", "/order/{id}/status", "Move an order to its next status"),
-		ep(orders, "PUT", "/order/{id}/payment-status", "Record an order's payment outcome"),
+		ep(orders, "GET", "/order/{refNum}", "Get an order"),
+		ep(orders, "GET", "/order-log", "An order's history (orderReferenceNumber, action)"),
+		ep(orders, "POST", "/order-log", "Add a staff entry to an order's history"),
+		// One PATCH changes an order (status, items, payment status, address, notes, metadata). order-svc lets a customer only
+		// cancel their own order and change its address and notes; everything else answers 403 to them.
+		ep(orders, "PATCH", "/order/{refNum}", "Update an order: status, items, payment, address, notes"),
 
 		// account-svc: user, role and endpoint management, and self-service
 		ep(account, "GET", "/user", "List users"),
@@ -149,12 +150,12 @@ func Roles() []Role {
 		[2]string{"GET", "/seller-product-request"}, [2]string{"GET", "/seller-product-request/{id}"},
 		[2]string{"PUT", "/seller-product-request/{id}/approval"}, [2]string{"PUT", "/seller-product-request/{id}/visibility"})
 
+	// Customers and staff share most grants: order-svc decides, from the forwarded identity, what each may change.
 	customer := grant(orders,
-		[2]string{"POST", "/order"}, [2]string{"GET", "/order"}, [2]string{"GET", "/order/{id}"},
-		[2]string{"GET", "/order/{id}/log"}, [2]string{"PUT", "/order/{id}/cancel"})
+		[2]string{"POST", "/order"}, [2]string{"GET", "/order"}, [2]string{"GET", "/order/{refNum}"},
+		[2]string{"GET", "/order-log"}, [2]string{"PATCH", "/order/{refNum}"})
 
-	orderManager := append(append([]string{}, customer...), grant(orders,
-		[2]string{"PUT", "/order/{id}/status"}, [2]string{"PUT", "/order/{id}/payment-status"})...)
+	orderManager := append(append([]string{}, customer...), grant(orders, [2]string{"POST", "/order-log"})...)
 
 	return []Role{
 		{Name: "admin", Description: "Full access", AllAccess: true},
@@ -175,7 +176,7 @@ func Roles() []Role {
 		},
 		{
 			Name:        "order-manager",
-			Description: "Staff who run orders: see every order and move it through its statuses (needs sellerScope all)",
+			Description: "Staff who run orders: see every order, move it through its statuses, edit its items and record payment (needs sellerScope all)",
 			Grants:      orderManager,
 		},
 	}

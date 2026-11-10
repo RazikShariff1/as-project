@@ -35,6 +35,11 @@ func InvalidParam(params ...string) error {
 	return gofrhttp.ErrorInvalidParam{Params: params}
 }
 
+// MissingParam builds a 400 error naming the parameters that were not sent.
+func MissingParam(params ...string) error {
+	return gofrhttp.ErrorMissingParam{Params: params}
+}
+
 // FromStore maps a store-layer error to a GoFr HTTP error. Unknown errors surface as a 500.
 func FromStore(err error, name, value string) error {
 	switch {
@@ -67,6 +72,8 @@ func fkParam(constraint string) string {
 		return "status"
 	case "orders_payment_status_valid":
 		return "paymentStatus"
+	case "order_items_status_valid", "order_items_unit_positive":
+		return "orderItems"
 	case "orders_payment_method_valid":
 		return "paymentMethod"
 	case "order_items_quantity_positive":
@@ -85,15 +92,43 @@ func (conflict) StatusCode() int { return http.StatusConflict }
 // Conflict builds a 409 error with the given message.
 func Conflict(msg string) error { return conflict{msg: msg} }
 
-// Paginate reads limit (default 20, max 100), page (1-based) and offset (overrides page) from the query string.
-func Paginate(ctx *gofr.Context) (limit, offset int, err error) {
-	limit = defaultLimit
+// MaxUnpaginated caps what paginated=false returns.
+const MaxUnpaginated = 1000
 
-	if raw := ctx.Param("limit"); raw != "" {
-		limit, err = strconv.Atoi(raw)
-		if err != nil || limit < 1 || limit > maxLimit {
-			return 0, 0, InvalidParam("limit")
+// Paginate reads the page asked for, as the reference service does. The standard parameters are limit (default 20, max 100) and
+// offset (records to skip); if neither is sent the legacy page (1-based) and perPage are used. paginated=false returns up to
+// MaxUnpaginated rows from the start.
+func Paginate(ctx *gofr.Context) (limit, offset int, err error) {
+	if raw := ctx.Param("paginated"); raw != "" {
+		all, parseErr := strconv.ParseBool(raw)
+		if parseErr != nil {
+			return 0, 0, InvalidParam("paginated")
 		}
+
+		if !all {
+			return MaxUnpaginated, 0, nil
+		}
+	}
+
+	limit, err = positive(ctx, "limit", defaultLimit, maxLimit)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if ctx.Param("offset") != "" || ctx.Param("limit") != "" {
+		if raw := ctx.Param("offset"); raw != "" {
+			offset, err = strconv.Atoi(raw)
+			if err != nil || offset < 0 {
+				return 0, 0, InvalidParam("offset")
+			}
+		}
+
+		return limit, offset, nil
+	}
+
+	// Legacy: page and perPage.
+	if limit, err = positive(ctx, "perPage", defaultLimit, maxLimit); err != nil {
+		return 0, 0, err
 	}
 
 	page := 1
@@ -105,16 +140,22 @@ func Paginate(ctx *gofr.Context) (limit, offset int, err error) {
 		}
 	}
 
-	offset = limit * (page - 1)
+	return limit, limit * (page - 1), nil
+}
 
-	if raw := ctx.Param("offset"); raw != "" {
-		offset, err = strconv.Atoi(raw)
-		if err != nil || offset < 0 {
-			return 0, 0, InvalidParam("offset")
-		}
+// positive reads an optional integer in [1, max]; absent means def.
+func positive(ctx *gofr.Context, name string, def, ceiling int) (int, error) {
+	raw := ctx.Param(name)
+	if raw == "" {
+		return def, nil
 	}
 
-	return limit, offset, nil
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < 1 || v > ceiling {
+		return 0, InvalidParam(name)
+	}
+
+	return v, nil
 }
 
 // Respond adapts a service result for a GoFr handler. GoFr turns "data plus error" into a 206/500, so on
@@ -132,14 +173,14 @@ func FromStoreID(err error, name string, id int64) error {
 	return FromStore(err, name, strconv.FormatInt(id, 10))
 }
 
-// PathID reads the {id} path parameter as a positive integer; anything else is a 400.
-func PathID(ctx *gofr.Context) (int64, error) {
-	id, err := strconv.ParseInt(ctx.PathParam("id"), 10, 64)
-	if err != nil || id < 1 {
-		return 0, InvalidParam("id")
+// PathRef reads the {refNum} path parameter (an order's reference number) as a positive integer; anything else is a 400.
+func PathRef(ctx *gofr.Context) (int64, error) {
+	ref, err := strconv.ParseInt(ctx.PathParam("refNum"), 10, 64)
+	if err != nil || ref < 1 {
+		return 0, InvalidParam("refNum")
 	}
 
-	return id, nil
+	return ref, nil
 }
 
 // QueryID reads an optional positive-integer query parameter; absent means 0, malformed is a 400.

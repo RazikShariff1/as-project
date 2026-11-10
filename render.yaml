@@ -30,6 +30,10 @@ services:
       - { key: ORDER_DB_HOST,           sync: false }
       - { key: ORDER_DB_USER,           sync: false }
       - { key: ORDER_DB_PASSWORD,       sync: false }
+      - { key: CUSTOMER_DB_NAME,        value: neondb }
+      - { key: CUSTOMER_DB_HOST,        sync: false }
+      - { key: CUSTOMER_DB_USER,        sync: false }
+      - { key: CUSTOMER_DB_PASSWORD,    sync: false }
       # account-svc creates this first admin on startup while there are no users.
       - { key: ADMIN_EMAIL,           sync: false }
       - { key: ADMIN_PASSWORD,        sync: false }

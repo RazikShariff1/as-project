@@ -1,6 +1,6 @@
 #!/bin/sh
-# Runs the four services in one container. Only the gateway listens on Render's public $PORT; the others stay on
-# localhost (8081-8084), which are the defaults the gateway and catalogue-svc already use.
+# Runs the services in one container. Only the gateway listens on Render's public $PORT; the others stay on
+# localhost (8081-8085), which are the defaults the gateway and catalogue-svc already use.
 # Each service runs from its own directory so GoFr finds its own configs/.env, and gets its own database credentials.
 set -u
 
@@ -27,6 +27,9 @@ run inventory-svc INVENTORY
 run catalogue-svc CATALOGUE
 # order-svc is optional until its database is configured, so adding it never takes the other services down.
 if [ -n "${ORDER_DB_HOST:-}" ]; then run order-svc ORDER; else echo "order-svc skipped: ORDER_DB_HOST is not set" >&2; fi
+
+# customer-svc (shoppers' accounts, behind the gateway's /store realm) is optional in the same way.
+if [ -n "${CUSTOMER_DB_HOST:-}" ]; then run customer-svc CUSTOMER; else echo "customer-svc skipped: CUSTOMER_DB_HOST is not set" >&2; fi
 
 # Gateway: public port, no database.
 (cd /app/gateway-svc && HTTP_PORT="$PORT" exec ./gateway-svc) &

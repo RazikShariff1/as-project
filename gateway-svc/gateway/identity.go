@@ -11,17 +11,20 @@ import (
 // The identity the backends receive. They have no auth of their own and trust these headers, which is safe only because
 // the gateway removes anything a client sends under these names and is the only way in.
 const (
-	headerUserID    = "X-User-Id"
-	headerSellerID  = "X-Seller-Id"
-	headerAllAccess = "X-All-Access"
-	headerRoleIDs   = "X-Role-Ids"
+	headerUserID = "X-User-Id"
+	// headerCustomerID is a shopper's id (customer-svc's id space), set only on the /store realm. It is never sent together with
+	// the team headers: a shopper has no roles, no seller and no staff scope.
+	headerCustomerID = "X-Customer-Id"
+	headerSellerID   = "X-Seller-Id"
+	headerAllAccess  = "X-All-Access"
+	headerRoleIDs    = "X-Role-Ids"
 	// headerSellerScope is "all" when the caller may act across sellers. Backends limit a caller to X-Seller-Id unless it is set.
 	headerSellerScope = "X-Seller-Scope"
 )
 
 // stripped are the header name prefixes a client may never send to a backend.
 func stripped() []string {
-	return []string{"X-User-", "X-Seller-", "X-All-", "X-Role-", "X-Identity-", "X-Forwarded-User"}
+	return []string{"X-User-", "X-Seller-", "X-All-", "X-Role-", "X-Customer-", "X-Identity-", "X-Forwarded-User"}
 }
 
 // stripIdentity deletes every header a client could use to pose as someone else, plus the credentials themselves: the
@@ -65,4 +68,9 @@ func setIdentity(h http.Header, p accountclient.Principal) {
 	if len(roles) > 0 {
 		h.Set(headerRoleIDs, strings.Join(roles, ","))
 	}
+}
+
+// setCustomerIdentity adds the verified shopper id to the headers sent to a backend.
+func setCustomerIdentity(h http.Header, id int64) {
+	h.Set(headerCustomerID, strconv.FormatInt(id, 10))
 }

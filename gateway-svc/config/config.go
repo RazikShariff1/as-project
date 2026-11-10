@@ -16,11 +16,15 @@ func Backends() map[string]string {
 		"catalogue-svc": "CATALOGUE_SVC_URL",
 		"inventory-svc": "INVENTORY_SVC_URL",
 		"order-svc":     "ORDER_SVC_URL",
+		"customer-svc":  "CUSTOMER_SVC_URL",
 	}
 }
 
-// AccountService is the backend that authenticates and authorises every request.
+// AccountService is the backend that authenticates and authorises every request on the team's /api realm.
 const AccountService = "account-svc"
+
+// CustomerService is the backend that authenticates shoppers on the customer-facing /store realm.
+const CustomerService = "customer-svc"
 
 // Settings are the gateway's runtime settings.
 type Settings struct {
@@ -41,6 +45,7 @@ var defaultURLs = map[string]string{
 	"CATALOGUE_SVC_URL": "http://localhost:8081",
 	"INVENTORY_SVC_URL": "http://localhost:8082",
 	"ORDER_SVC_URL":     "http://localhost:8084",
+	"CUSTOMER_SVC_URL":  "http://localhost:8085",
 }
 
 // Load reads and validates the settings.

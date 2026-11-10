@@ -14,14 +14,17 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/zopping/gateway-svc/accountclient"
 	"github.com/zopping/gateway-svc/config"
+	"github.com/zopping/gateway-svc/customerclient"
 	"github.com/zopping/gateway-svc/policy"
 	"github.com/zopping/gateway-svc/ratelimit"
 	"github.com/zopping/gateway-svc/routing"
+	"github.com/zopping/gateway-svc/store"
 )
 
 const (
@@ -35,16 +38,20 @@ const (
 type Gateway struct {
 	settings  config.Settings
 	accounts  accountclient.Client
+	customers customerclient.Client
+	log       Logger
 	limiter   *ratelimit.Limiter
+	storeRate *ratelimit.Limiter
 	transport http.RoundTripper
 }
 
 // New returns a gateway that asks accounts about every token.
 func New(s config.Settings, accounts accountclient.Client) *Gateway {
 	return &Gateway{
-		settings: s,
-		accounts: accounts,
-		limiter:  ratelimit.New(s.LoginPerMinute),
+		settings:  s,
+		accounts:  accounts,
+		limiter:   ratelimit.New(s.LoginPerMinute),
+		storeRate: ratelimit.New(s.LoginPerMinute),
 		transport: &http.Transport{
 			MaxIdleConnsPerHost:   32,
 			IdleConnTimeout:       90 * time.Second,
@@ -53,17 +60,27 @@ func New(s config.Settings, accounts accountclient.Client) *Gateway {
 	}
 }
 
-// Middleware serves everything under /api/ and passes every other path (health, metrics) to the rest of the app.
+// WithCustomers turns on the customer-facing /store realm, where shoppers are authenticated by customer-svc. Without it
+// /store answers 404.
+func (g *Gateway) WithCustomers(c customerclient.Client) *Gateway {
+	g.customers = c
+
+	return g
+}
+
+// Middleware serves everything under /api/ (the team) and /store/ (shoppers) and passes every other path (health, metrics) to
+// the rest of the app.
 func (g *Gateway) Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !strings.HasPrefix(r.URL.Path, routing.Prefix) {
+			switch {
+			case strings.HasPrefix(r.URL.Path, routing.Prefix):
+				g.logged(w, r, "api", g.serve)
+			case strings.HasPrefix(r.URL.Path, store.Prefix):
+				g.logged(w, r, "store", g.serveStore)
+			default:
 				next.ServeHTTP(w, r)
-
-				return
 			}
-
-			g.serve(w, r)
 		})
 	}
 }
@@ -78,7 +95,10 @@ func (g *Gateway) serve(w http.ResponseWriter, r *http.Request) {
 	service, rest, ok := routing.Parse(r.URL.Path)
 	target := g.settings.Services[service]
 
+	note(r, func(l *record) { l.service, l.path = service, rest })
+
 	if !ok || target == nil {
+		note(r, func(l *record) { l.decision = "unknown-service" })
 		writeError(w, http.StatusNotFound, "unknown service")
 
 		return
@@ -86,10 +106,13 @@ func (g *Gateway) serve(w http.ResponseWriter, r *http.Request) {
 
 	rest, ok = cleanPath(rest)
 	if !ok {
+		note(r, func(l *record) { l.decision = "invalid-path" })
 		writeError(w, http.StatusBadRequest, "invalid path")
 
 		return
 	}
+
+	note(r, func(l *record) { l.path = rest })
 
 	// Read the token before the credentials are stripped from what the backend will see.
 	token := bearer(r)
@@ -103,6 +126,7 @@ func (g *Gateway) serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(correlationID, r.Header.Get(correlationID))
 
 	class, force := policy.Classify(service, r.Method, rest)
+	note(r, func(l *record) { l.decision = className(class) })
 
 	switch class {
 	case policy.Internal:
@@ -153,8 +177,11 @@ func (g *Gateway) serveProtected(w http.ResponseWriter, r *http.Request, target 
 		return
 	}
 
+	note(r, func(l *record) { l.who = "user:" + strconv.FormatInt(p.User.ID, 10) })
+
 	query, err := policy.Enforce(p, service, r.Method, rest, r, g.settings.MaxBodyBytes)
 	if err != nil {
+		note(r, func(l *record) { l.decision += "-denied" })
 		writeScopeError(w, err)
 
 		return
@@ -167,13 +194,15 @@ func (g *Gateway) serveProtected(w http.ResponseWriter, r *http.Request, target 
 		forward = token
 	}
 
-	g.proxy(w, r, target, rest, query, &p, forward)
+	g.proxy(w, r, target, rest, query, func(h http.Header) { setIdentity(h, p) }, forward)
 }
 
 // proxy forwards the request to the backend under its own path, with the verified identity (if any) in headers.
-func (g *Gateway) proxy(w http.ResponseWriter, r *http.Request, target *url.URL, rest string, query url.Values, p *accountclient.Principal, forwardToken string) {
+func (g *Gateway) proxy(w http.ResponseWriter, r *http.Request, target *url.URL, rest string, query url.Values, setID func(http.Header), forwardToken string) {
 	ctx, cancel := context.WithTimeout(r.Context(), g.settings.ProxyTimeout)
 	defer cancel()
+
+	note(r, func(l *record) { l.target = strings.TrimRight(target.String(), "/") + rest })
 
 	rp := &httputil.ReverseProxy{
 		Transport: g.transport,
@@ -184,8 +213,8 @@ func (g *Gateway) proxy(w http.ResponseWriter, r *http.Request, target *url.URL,
 			pr.Out.URL.RawQuery = query.Encode()
 			pr.SetXForwarded()
 
-			if p != nil {
-				setIdentity(pr.Out.Header, *p)
+			if setID != nil {
+				setID(pr.Out.Header)
 			}
 
 			if forwardToken != "" {
@@ -214,6 +243,19 @@ func (g *Gateway) proxy(w http.ResponseWriter, r *http.Request, target *url.URL,
 	}
 
 	rp.ServeHTTP(w, r.WithContext(ctx))
+}
+
+func className(c policy.Class) string {
+	switch c {
+	case policy.Public:
+		return "public"
+	case policy.AuthOnly:
+		return "auth-only"
+	case policy.Internal:
+		return "internal"
+	default:
+		return "protected"
+	}
 }
 
 // cleanPath rejects paths with empty, "." or ".." segments. The gateway checks permissions and ownership against the path it

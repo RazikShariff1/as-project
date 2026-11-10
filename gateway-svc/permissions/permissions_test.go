@@ -32,7 +32,7 @@ func TestEveryEndpointIsUniqueAndWellFormed(t *testing.T) {
 		assert.NotEmpty(t, e.Description, e.Key())
 		assert.True(t, strings.HasPrefix(e.Path, "/"), e.Key())
 		assert.Contains(t, []string{"GET", "POST", "PUT", "PATCH", "DELETE"}, e.Method, e.Key())
-		assert.Contains(t, []string{"account-svc", "catalogue-svc", "inventory-svc", "order-svc"}, e.Service, e.Key())
+		assert.Contains(t, []string{"account-svc", "catalogue-svc", "inventory-svc", "order-svc", "customer-svc"}, e.Service, e.Key())
 	}
 }
 
@@ -76,7 +76,8 @@ func TestRolesAreWellFormed(t *testing.T) {
 		}
 	}
 
-	assert.True(t, names["admin"] && names["seller"] && names["catalogue-manager"] && names["customer"] && names["order-manager"])
+	assert.True(t, names["admin"] && names["seller"] && names["catalogue-manager"] && names["order-manager"])
+	assert.False(t, names["customer"], "shoppers are customer-svc accounts on /store, not a role in account-svc")
 }
 
 func grants(name string) map[string]bool {
@@ -140,26 +141,6 @@ func TestCatalogueManagerHasNoInventoryOrAccountAccess(t *testing.T) {
 	}
 
 	assert.True(t, grants("catalogue-manager")[Key("catalogue-svc", "PUT", "/seller-product-request/{id}/approval")])
-}
-
-func TestACustomerCanOrderButNotRunOrders(t *testing.T) {
-	g := grants("customer")
-
-	for _, r := range [][2]string{{"POST", "/order"}, {"GET", "/order"}, {"GET", "/order/{refNum}"}, {"GET", "/order-log"},
-		{"PATCH", "/order/{refNum}"}} {
-		assert.True(t, g[Key("order-svc", r[0], r[1])], "%v", r)
-	}
-
-	assert.False(t, g[Key("order-svc", "POST", "/order-log")], "customers read their order's history but do not write it")
-
-	// There is no separate cancel, status or payment call any more; order-svc limits what a customer's PATCH may do.
-	for _, old := range []string{"/order/{id}/cancel", "/order/{id}/status", "/order/{id}/payment-status"} {
-		assert.False(t, g[Key("order-svc", "PUT", old)], old)
-	}
-
-	for k := range g {
-		assert.True(t, strings.HasPrefix(k, "order-svc "), "a customer should only touch orders, got %s", k)
-	}
 }
 
 func TestAnOrderManagerCanRunOrders(t *testing.T) {

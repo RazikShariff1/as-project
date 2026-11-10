@@ -31,3 +31,16 @@ require `application/json` (415), cap size (413) and restore the body. Paths wit
 - `GET /product/{id}` is public and can return a HIDDEN product to anyone who knows the id.
 - A staff user needs `sellerScope: "all"` to see across sellers; the role alone does not grant it.
 - GoFr cleans `..`/`//` before the gateway runs; the cleaned path is what gets authorised and forwarded.
+
+## The shopper realm (`/store`)
+
+```
+shopper ─► gateway-svc /store/{service}/... ─► store.Lookup (allowlist; unlisted = 404)
+              ├─ Public: proxied (catalogue and stock reads, register, login; register and login are rate-limited per address)
+              └─ Signed: GET /auth/me (customer-svc) ─► store.Enforce (own data) ─► proxy with X-Customer-Id
+```
+
+Separate from `/api` on purpose: different callers, tokens, id spaces and rules. Reachable services: customer-svc (the shopper's own
+account), order-svc (place, list, read, cancel, history), and the public catalogue and stock reads. A shopper can only send `status:
+CANCELLED`, `cancellationReason`, `note`, `deliveryAddress` and `notes` in an order PATCH; the gateway checks that (keys in any letter
+case, JSON only, size capped) and order-svc enforces it again. `account-svc` is not reachable from `/store`.

@@ -26,6 +26,7 @@ const (
 	inventory = "inventory-svc"
 	account   = "account-svc"
 	orders    = "order-svc"
+	customers = "customer-svc"
 )
 
 func ep(service, method, path, description string) Endpoint {
@@ -77,6 +78,11 @@ func Endpoints() []Endpoint {
 		ep(inventory, "GET", "/reservation/{orderRef}", "Get a reservation"),
 		ep(inventory, "PUT", "/reservation/{orderRef}/confirm", "Confirm a reservation"),
 		ep(inventory, "PUT", "/reservation/{orderRef}/release", "Release a reservation"),
+
+		// customer-svc: staff look up and suspend shoppers. Shoppers' own account routes are on the /store realm, not here.
+		ep(customers, "GET", "/customer", "List customers"),
+		ep(customers, "GET", "/customer/{id}", "Get a customer"),
+		ep(customers, "PUT", "/customer/{id}/status", "Suspend or reactivate a customer"),
 
 		// order-svc: customers act on their own orders (order-svc limits them to those); staff on all
 		ep(orders, "POST", "/order", "Place an order"),
@@ -150,15 +156,23 @@ func Roles() []Role {
 		[2]string{"GET", "/seller-product-request"}, [2]string{"GET", "/seller-product-request/{id}"},
 		[2]string{"PUT", "/seller-product-request/{id}/approval"}, [2]string{"PUT", "/seller-product-request/{id}/visibility"})
 
-	// Customers and staff share most grants: order-svc decides, from the forwarded identity, what each may change.
-	customer := grant(orders,
+	// Shoppers are not team accounts: they sign in with customer-svc and reach orders through the gateway's /store realm, so there
+	// is no customer role here. Order managers get the order routes; order-svc decides from the forwarded identity what each may change.
+	orderAccess := grant(orders,
 		[2]string{"POST", "/order"}, [2]string{"GET", "/order"}, [2]string{"GET", "/order/{refNum}"},
 		[2]string{"GET", "/order-log"}, [2]string{"PATCH", "/order/{refNum}"})
 
-	orderManager := append(append([]string{}, customer...), grant(orders, [2]string{"POST", "/order-log"})...)
+	orderManager := append(append([]string{}, orderAccess...), grant(orders, [2]string{"POST", "/order-log"})...)
+
+	support := grant(customers, [2]string{"GET", "/customer"}, [2]string{"GET", "/customer/{id}"}, [2]string{"PUT", "/customer/{id}/status"})
 
 	return []Role{
 		{Name: "admin", Description: "Full access", AllAccess: true},
+		{
+			Name:        "customer-support",
+			Description: "Staff who look up shoppers and suspend or reactivate their accounts",
+			Grants:      support,
+		},
 		{
 			Name:        "seller",
 			Description: "A seller: files product requests, manages their own offers' stock and price, and their own account",
@@ -168,11 +182,6 @@ func Roles() []Role {
 			Name:        "catalogue-manager",
 			Description: "Staff who curate the catalogue, decide who may sell what, and review seller requests (needs sellerScope all)",
 			Grants:      manager,
-		},
-		{
-			Name:        "customer",
-			Description: "A shopper: places, views and cancels their own orders (order-svc limits them to their own)",
-			Grants:      customer,
 		},
 		{
 			Name:        "order-manager",

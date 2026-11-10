@@ -8,8 +8,11 @@ const Prefix = "/api/"
 
 // Parse splits /api/{service}/{rest...} into the service name and the path the backend sees (always starting with "/").
 // ok is false when there is no service segment.
-func Parse(p string) (service, rest string, ok bool) {
-	trimmed := strings.TrimPrefix(p, Prefix)
+func Parse(p string) (service, rest string, ok bool) { return ParseWith(Prefix, p) }
+
+// ParseWith is Parse for any prefix (the customer realm serves /store/{service}/{path...}).
+func ParseWith(prefix, p string) (service, rest string, ok bool) {
+	trimmed := strings.TrimPrefix(p, prefix)
 	if trimmed == p || trimmed == "" {
 		return "", "", false
 	}

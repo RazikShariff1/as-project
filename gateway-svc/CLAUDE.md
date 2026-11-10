@@ -1,7 +1,12 @@
 # CLAUDE.md
 
-Go (GoFr) edge gateway for the marketplace. The only thing clients talk to: `/api/{service}/{path}` is authenticated,
-authorised, scoped to the caller's seller, then proxied. Backends (`account-svc`, `catalogue-svc`, `inventory-svc`) have no auth.
+Go (GoFr) edge gateway for the marketplace. The only thing clients talk to. Two realms:
+
+- `/api/{service}/{path}` is the **team's**: authenticated and authorised by `account-svc`, scoped to the caller's seller, then proxied.
+- `/store/{service}/{path}` is the **shoppers'**: a fixed allowlist (package `store`), authenticated by `customer-svc`, held to the
+  shopper's own data, then proxied with `X-Customer-Id`.
+
+Backends have no auth of their own.
 
 ## Commands
 
@@ -24,4 +29,13 @@ make seed       # register endpoints + roles in account-svc (re-runnable)
   versions of these (and any `X-User-*`, `X-Seller-*`, `X-All-*`, `X-Role-*`) are stripped first.
 - Backend `Access-Control-*` headers are dropped; the gateway sets CORS once.
 - `permissions/permissions.go` is the source of truth for roles; a guard test fails if a role grants something the seller must not have.
+- **`/store` is an allowlist, not a role check.** A call not listed in `store/store.go` is a 404. A signed route there needs an
+  ownership rule (`OwnQuery`, `OwnBody`, `OnlyBody`/`BodyValues`) or, for customer-svc, must be a token-identified `/me` route. Never
+  list a staff route in `store`; `store/store_test.go` fails if one slips in. Shoppers get `X-Customer-Id`, never `X-User-Id`, and
+  `X-Customer-*` is stripped from clients like the other identity headers. A team token does not work on `/store` and a shopper
+  token does not work on `/api`.
+- **Every `/api` and `/store` request logs one line** when it is done (`gateway/accesslog.go`): `realm`, `method`, `path`, `service`,
+  `decision` (public, protected, allowlisted-signed, not-listed, own-data-denied, ...), `who` (`user:<id>`, `customer:<id>` or
+  `anonymous`), `target` (where it was proxied; empty when it never left), `status`, `ms`, `cid`. Refusals are warnings. Never log
+  tokens, query strings or bodies; `accesslog_test.go` checks that.
 - The `/` route exists only because GoFr does not start its HTTP server without a registered route.

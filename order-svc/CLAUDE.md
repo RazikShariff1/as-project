@@ -33,6 +33,9 @@ make generate-mocks    # after changing services/, stores/ or clients/inventory 
   idempotent through a unique index, not through a read alone.
 - Keep reads to one query and independent inventory-svc calls parallel (see "Latency" in the architecture doc).
 - Every status, payment, item or detail change writes `order_logs` rows in the same transaction.
+- Identity comes from the gateway: `X-Customer-Id` for a shopper (customer-svc's id space; wins over any other header, so it
+  can never widen a shopper's reach), `X-User-Id` plus `X-All-Access` / `X-Seller-Scope: all` for staff (`common/caller`). The two id
+  spaces overlap, so never compare one with the other.
 - A customer can never see another customer's order: it answers 404, not 403. Staff-only calls answer 403 to customers.
 - Handlers return `httpx.Respond(...)`: GoFr turns "data plus error" into a 500, so data must be nil on error.
 - Never edit an applied migration; add a new key in `migrations.All()`.

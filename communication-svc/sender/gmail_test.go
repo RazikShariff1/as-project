@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/mail"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -58,7 +57,10 @@ func TestGmail_SendsRawMIMEAndCachesTheToken(t *testing.T) {
 	assert.Contains(t, raw, "To: a@example.com")
 	assert.Contains(t, raw, "Cc: c@example.com")
 	assert.Contains(t, raw, "Bcc: b@example.com", "the Gmail API reads Bcc from the message and strips it")
-	assert.True(t, strings.HasSuffix(strings.TrimSpace(raw), "<p>x</p>"))
+	assert.Contains(t, raw, "multipart/alternative")
+	assert.Contains(t, raw, "Content-Type: text/plain; charset=UTF-8")
+	assert.Contains(t, raw, "Content-Type: text/html; charset=UTF-8")
+	assert.Contains(t, raw, "<p>x</p>")
 }
 
 func TestGmail_Errors(t *testing.T) {

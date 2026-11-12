@@ -5,6 +5,7 @@ import (
 
 	"gofr.dev/pkg/gofr"
 
+	"github.com/zopping/order-svc/clients/communication"
 	"github.com/zopping/order-svc/clients/inventory"
 	"github.com/zopping/order-svc/common/caller"
 	orderHTTP "github.com/zopping/order-svc/http/order"
@@ -20,7 +21,10 @@ import (
 	orderLogStore "github.com/zopping/order-svc/stores/orderlog"
 )
 
-const inventoryServiceName = "inventory-svc"
+const (
+	inventoryServiceName     = "inventory-svc"
+	communicationServiceName = "communication-svc"
+)
 
 func main() {
 	app := gofr.New()
@@ -38,12 +42,21 @@ func main() {
 		app.Logger().Fatal("RESERVATION_TTL_SECONDS must be between 1 and 86400")
 	}
 
+	// New orders are emailed to the owner (the admin) through communication-svc. Without both an address and the service URL, none are.
+	var notifier communication.Notifier = communication.Nop{}
+
+	if url, owner := app.Config.Get("COMMUNICATION_SERVICE_URL"), app.Config.Get("ADMIN_EMAIL"); url != "" && owner != "" {
+		app.AddHTTPService(communicationServiceName, url)
+
+		notifier = communication.New(communicationServiceName, owner)
+	}
+
 	// Stores -> services -> handlers.
 	var (
 		orderStr   = orderStore.New()
 		inv        = inventory.New(inventoryServiceName)
 		orderLogH  = orderLogHTTP.New(orderLogService.New(orderLogStore.New()))
-		placeH     = placeOrderHTTP.New(placeOrderService.New(orderStr, inv, ttl))
+		placeH     = placeOrderHTTP.New(placeOrderService.WithNotifier(placeOrderService.New(orderStr, inv, ttl), notifier))
 		orderH     = orderHTTP.New(orderService.New(orderStr))
 		orderPatch = orderHandlers.NewOrderHandler(orderPatchService.New(orderStr, inv, ttl))
 	)

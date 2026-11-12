@@ -7,6 +7,7 @@ import (
 
 	"gofr.dev/pkg/gofr"
 
+	"github.com/zopping/order-svc/clients/communication"
 	"github.com/zopping/order-svc/clients/inventory"
 	"github.com/zopping/order-svc/common/apperr"
 	"github.com/zopping/order-svc/common/httpx"
@@ -22,11 +23,21 @@ type service struct {
 	store     stores.Order
 	inventory inventory.Client
 	ttl       int
+	notifier  communication.Notifier
 }
 
 // New returns the place-order service. ttlSeconds is how long a new order holds its stock before inventory-svc may release it.
 func New(store stores.Order, inv inventory.Client, ttlSeconds int) services.PlaceOrder {
-	return &service{store: store, inventory: inv, ttl: ttlSeconds}
+	return &service{store: store, inventory: inv, ttl: ttlSeconds, notifier: communication.Nop{}}
+}
+
+// WithNotifier sets who is told when an order is placed. New returns the interface, so it takes the service and hands it back.
+func WithNotifier(s services.PlaceOrder, n communication.Notifier) services.PlaceOrder {
+	if svc, ok := s.(*service); ok {
+		svc.notifier = n
+	}
+
+	return s
 }
 
 // ValidTTL reports whether ttlSeconds is acceptable to inventory-svc.
@@ -89,6 +100,8 @@ func (s *service) Create(ctx *gofr.Context, req *models.OrderPlaceCreateSvcReq) 
 	if err != nil {
 		return nil, httpx.FromStore(err, "order", ref)
 	}
+
+	s.notifier.OrderPlaced(ctx, order)
 
 	return order, nil
 }

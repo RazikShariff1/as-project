@@ -12,6 +12,7 @@ import (
 
 	"gofr.dev/pkg/gofr"
 
+	"github.com/zopping/customer-svc/clients/communication"
 	"github.com/zopping/customer-svc/common/apperr"
 	"github.com/zopping/customer-svc/common/authctx"
 	"github.com/zopping/customer-svc/common/httpx"
@@ -42,6 +43,7 @@ type Service struct {
 	ttlSeconds int
 	now        func() time.Time
 	dummyHash  string
+	notifier   communication.Notifier
 }
 
 // New returns an auth service. Sessions live ttlSeconds. It hashes one dummy password up front so a login for an
@@ -52,7 +54,14 @@ func New(customers stores.Customer, sessions stores.Session, hasher *password.Ha
 		return nil, err
 	}
 
-	return &Service{customers: customers, sessions: sessions, hasher: hasher, ttlSeconds: ttlSeconds, now: time.Now, dummyHash: dummy}, nil
+	return &Service{customers: customers, sessions: sessions, hasher: hasher, ttlSeconds: ttlSeconds, now: time.Now, dummyHash: dummy, notifier: communication.Nop{}}, nil
+}
+
+// WithNotifier sets who sends the shopper emails (the welcome after registering). Without it none are sent.
+func (s *Service) WithNotifier(n communication.Notifier) *Service {
+	s.notifier = n
+
+	return s
 }
 
 // HashToken returns the SHA-256 of a token as hex. Only this is ever stored.
@@ -97,7 +106,14 @@ func (s *Service) Register(ctx *gofr.Context, req *models.RegisterRequest) (mode
 		return models.Session{}, httpx.FromStore(err, "email", email)
 	}
 
-	return s.open(ctx, c)
+	session, err := s.open(ctx, c)
+	if err != nil {
+		return models.Session{}, err
+	}
+
+	s.notifier.Welcome(ctx, c.Name, c.Email)
+
+	return session, nil
 }
 
 // Login exchanges credentials for a session token.

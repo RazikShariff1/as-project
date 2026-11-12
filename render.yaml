@@ -34,6 +34,17 @@ services:
       - { key: CUSTOMER_DB_HOST,        sync: false }
       - { key: CUSTOMER_DB_USER,        sync: false }
       - { key: CUSTOMER_DB_PASSWORD,    sync: false }
+      - { key: COMMUNICATION_DB_NAME,     value: neondb }
+      - { key: COMMUNICATION_DB_HOST,     sync: false }
+      - { key: COMMUNICATION_DB_USER,     sync: false }
+      - { key: COMMUNICATION_DB_PASSWORD, sync: false }
+      # Outgoing mail for communication-svc. Without SMTP_HOST emails are only logged, not delivered.
+      - { key: SMTP_HOST,      sync: false }
+      - { key: SMTP_PORT,      value: "587" }
+      - { key: SMTP_USERNAME,  sync: false }
+      - { key: SMTP_PASSWORD,  sync: false }
+      - { key: SMTP_FROM,      sync: false }
+      - { key: SMTP_FROM_NAME, sync: false }
       # account-svc creates this first admin on startup while there are no users.
       - { key: ADMIN_EMAIL,           sync: false }
       - { key: ADMIN_PASSWORD,        sync: false }

@@ -4,7 +4,7 @@ FROM golang:1.25-alpine AS build
 ENV GOTOOLCHAIN=auto CGO_ENABLED=0
 WORKDIR /src
 COPY . .
-RUN for s in gateway-svc account-svc catalogue-svc inventory-svc order-svc customer-svc; do \
+RUN for s in gateway-svc account-svc catalogue-svc inventory-svc order-svc customer-svc communication-svc; do \
       (cd "$s" && go build -trimpath -ldflags="-s -w" -o "/out/$s/$s" .) || exit 1; \
       cp -r "$s/configs" "/out/$s/configs"; \
     done
@@ -23,7 +23,8 @@ ENV GOFR_ENV=production \
     CATALOGUE_DB_NAME=neondb \
     INVENTORY_DB_NAME=neondb \
     ORDER_DB_NAME=neondb \
-    CUSTOMER_DB_NAME=neondb
+    CUSTOMER_DB_NAME=neondb \
+    COMMUNICATION_DB_NAME=neondb
 USER app
 EXPOSE 10000
 CMD ["/app/start.sh"]

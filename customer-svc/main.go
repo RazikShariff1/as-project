@@ -5,6 +5,7 @@ import (
 
 	"gofr.dev/pkg/gofr"
 
+	"github.com/zopping/customer-svc/clients/communication"
 	"github.com/zopping/customer-svc/common/authctx"
 	"github.com/zopping/customer-svc/common/password"
 	addressHTTP "github.com/zopping/customer-svc/http/address"
@@ -19,7 +20,10 @@ import (
 	sessionStore "github.com/zopping/customer-svc/stores/session"
 )
 
-const minutesPerSecond = 60
+const (
+	minutesPerSecond         = 60
+	communicationServiceName = "communication-svc"
+)
 
 func main() {
 	app := gofr.New()
@@ -32,6 +36,15 @@ func main() {
 		app.Logger().Fatal("SESSION_TTL_MINUTES must be a positive number of minutes")
 	}
 
+	// Shopper emails go through communication-svc. Without COMMUNICATION_SERVICE_URL none are sent.
+	var notifier communication.Notifier = communication.Nop{}
+
+	if url := app.Config.Get("COMMUNICATION_SERVICE_URL"); url != "" {
+		app.AddHTTPService(communicationServiceName, url)
+
+		notifier = communication.New(communicationServiceName)
+	}
+
 	// Stores -> services -> handlers.
 	customers, sessions, addresses := customerStore.New(), sessionStore.New(), addressStore.New()
 	hasher := password.New(password.DefaultCost)
@@ -40,6 +53,8 @@ func main() {
 	if err != nil {
 		app.Logger().Fatalf("cannot start auth service: %v", err)
 	}
+
+	auth.WithNotifier(notifier)
 
 	authHandler := authHTTP.New(auth)
 	customerHandler := customerHTTP.New(auth, customerService.New(customers, hasher))

@@ -9,8 +9,9 @@ import (
 
 func TestRender(t *testing.T) {
 	data := map[string]any{
-		"name":  "Sam <b>",
-		"vip":   true,
+		"name":    "Sam <b>",
+		"vip":     true,
+		"invoice": "<table>x</table>", "noteHTML": "<b>hi</b>",
 		"items": []any{map[string]any{"n": "rice", "q": 2.0}, map[string]any{"n": "dal", "q": 1.0}},
 	}
 
@@ -26,6 +27,8 @@ func TestRender(t *testing.T) {
 		{"flag off", "{{#other}}gold{{/other}}", "", false},
 		{"exists", "{{#name Exists}}yes{{/name Exists}}", "yes", false},
 		{"not exists", "{{#nope Exists}}yes{{/nope Exists}}", "", false},
+		{"invoice is raw html", "{{invoice}}", "<table>x</table>", true},
+		{"a field ending in HTML is raw html", "{{noteHTML}}", "<b>hi</b>", true},
 		{"a value that looks like a tag is not expanded", "{{x}}", "{​{name}}", false},
 	}
 

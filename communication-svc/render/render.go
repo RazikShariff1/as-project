@@ -6,6 +6,9 @@
 //	{{#field Exists}}...{{/field Exists}}   kept only when field is present in data
 //
 // A {{field}} with no value is an error, so a half-filled email is never sent.
+//
+// In a body, values are HTML-escaped, except fields that carry ready-made HTML: the reference's {{invoice}}, and any field whose name
+// ends in HTML. The caller builds those and must escape what it puts in them.
 package render
 
 import (
@@ -150,7 +153,7 @@ func (r *renderer) replaceVariables() error {
 		}
 
 		s := fmt.Sprintf("%v", value)
-		if r.escape {
+		if r.escape && !isHTML(field) {
 			s = html.EscapeString(s)
 		}
 
@@ -166,3 +169,6 @@ func (r *renderer) replaceVariables() error {
 
 	return nil
 }
+
+// isHTML reports whether a field carries HTML the caller built, which is inserted as is.
+func isHTML(field string) bool { return field == "invoice" || strings.HasSuffix(field, "HTML") }

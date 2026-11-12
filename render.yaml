@@ -45,6 +45,10 @@ services:
       - { key: GMAIL_REFRESH_TOKEN, sync: false }
       - { key: GMAIL_FROM,          sync: false }
       - { key: MAIL_FROM_NAME,      sync: false }
+      # The order emails: shown in the subject and greeting (defaults Zopping and the rupee sign), plus an optional support address.
+      - { key: STORE_NAME,      value: Zopping }
+      - { key: CURRENCY_SYMBOL, value: "₹" }
+      - { key: SUPPORT_EMAIL,   sync: false }
       # account-svc creates this first admin on startup while there are no users.
       - { key: ADMIN_EMAIL,           sync: false }
       - { key: ADMIN_PASSWORD,        sync: false }

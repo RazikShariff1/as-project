@@ -7,6 +7,7 @@ import (
 
 	"github.com/zopping/order-svc/clients/communication"
 	"github.com/zopping/order-svc/clients/inventory"
+	"github.com/zopping/order-svc/clients/lookup"
 	"github.com/zopping/order-svc/common/caller"
 	orderHTTP "github.com/zopping/order-svc/http/order"
 	orderLogHTTP "github.com/zopping/order-svc/http/orderlog"
@@ -24,6 +25,8 @@ import (
 const (
 	inventoryServiceName     = "inventory-svc"
 	communicationServiceName = "communication-svc"
+	customerServiceName      = "customer-svc"
+	catalogueServiceName     = "catalogue-svc"
 )
 
 func main() {
@@ -42,13 +45,20 @@ func main() {
 		app.Logger().Fatal("RESERVATION_TTL_SECONDS must be between 1 and 86400")
 	}
 
-	// New orders are emailed to the owner (the admin) through communication-svc. Without both an address and the service URL, none are.
+	// A new order is confirmed to the shopper and announced to the owner (ADMIN_EMAIL) by email, through communication-svc. The shopper's
+	// address and the product names come from customer-svc and catalogue-svc. Without COMMUNICATION_SERVICE_URL none are sent.
 	var notifier communication.Notifier = communication.Nop{}
 
-	if url, owner := app.Config.Get("COMMUNICATION_SERVICE_URL"), app.Config.Get("ADMIN_EMAIL"); url != "" && owner != "" {
+	if url := app.Config.Get("COMMUNICATION_SERVICE_URL"); url != "" {
 		app.AddHTTPService(communicationServiceName, url)
+		app.AddHTTPService(customerServiceName, app.Config.GetOrDefault("CUSTOMER_SERVICE_URL", "http://localhost:8085"))
+		app.AddHTTPService(catalogueServiceName, app.Config.GetOrDefault("CATALOGUE_SERVICE_URL", "http://localhost:8081"))
 
-		notifier = communication.New(communicationServiceName, owner)
+		notifier = &communication.HTTP{
+			Service: communicationServiceName, Lookup: &lookup.HTTP{Customers: customerServiceName, Catalogue: catalogueServiceName},
+			Owner: app.Config.Get("ADMIN_EMAIL"), StoreName: app.Config.GetOrDefault("STORE_NAME", "Zopping"),
+			SupportEmail: app.Config.Get("SUPPORT_EMAIL"), Currency: app.Config.GetOrDefault("CURRENCY_SYMBOL", "₹"),
+		}
 	}
 
 	// Stores -> services -> handlers.

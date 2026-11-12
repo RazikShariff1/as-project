@@ -25,8 +25,9 @@ make generate-mocks    # after changing services/ or stores/interfaces.go
 - Templates (`/communications`) use `{{field}}`, `{{%list}}..{{/list}}`, `{{#flag}}..{{/flag}}`, `{{#field Exists}}..{{/field Exists}}`
   (package `render`). Body values are HTML-escaped; a missing field is a 400, so a half-filled email never goes out.
 - Subjects are stripped of line breaks, recipients must parse as addresses (max 50): no header injection.
-- Without `SMTP_HOST` emails are only logged (and marked sent). 465 = implicit TLS, otherwise STARTTLS. Resend works over SMTP
-  (`smtp.resend.com`, user `resend`, password = API key).
+- Mail leaves by the first configured of: **Gmail API** (`GMAIL_*`, HTTPS, sends as the Gmail account itself; refresh token needs the
+  `gmail.send` scope), **SMTP** (`SMTP_*`; 465 = implicit TLS, otherwise STARTTLS), or just the log (emails marked sent, not delivered).
+  **Render's free plan blocks SMTP ports 25/465/587**, so use Gmail there. Resend only sends from a domain you have verified.
 - Use a **direct** Postgres host, not a pgbouncer pooler: through Neon's `-pooler` host roughly one request in three failed with
   `unnamed prepared statement does not exist`.
 - Never edit an applied migration; add a new key in `migrations.All()`. Each service needs its **own database** (migration versions

@@ -26,22 +26,7 @@ func main() {
 		app.Logger().Fatal("EMAIL_MAX_ATTEMPTS must be a positive number")
 	}
 
-	var out sender.Sender = sender.Log{Logger: app.Logger()}
-
-	if host := app.Config.Get("SMTP_HOST"); host != "" {
-		from, err := mail.ParseAddress(app.Config.Get("SMTP_FROM"))
-		if err != nil {
-			app.Logger().Fatal("SMTP_FROM must be an email address when SMTP_HOST is set")
-		}
-
-		from.Name = app.Config.Get("SMTP_FROM_NAME")
-		out = &sender.SMTP{
-			Host: host, Port: app.Config.GetOrDefault("SMTP_PORT", "587"),
-			Username: app.Config.Get("SMTP_USERNAME"), Password: app.Config.Get("SMTP_PASSWORD"), From: *from,
-		}
-	} else {
-		app.Logger().Warn("SMTP_HOST is not set: emails are logged, not delivered")
-	}
+	out := newSender(app)
 
 	// Stores -> services -> handlers.
 	templates := templateStore.New()
@@ -74,4 +59,42 @@ func main() {
 	})
 
 	app.Run()
+}
+
+// newSender picks how mail leaves: the Gmail API when GMAIL_REFRESH_TOKEN is set (HTTPS, so it works on Render's free plan,
+// which blocks SMTP ports), else SMTP when SMTP_HOST is set, else just the log.
+func newSender(app *gofr.App) sender.Sender {
+	cfg := app.Config
+
+	if cfg.Get("GMAIL_REFRESH_TOKEN") != "" {
+		from, err := mail.ParseAddress(cfg.Get("GMAIL_FROM"))
+		if err != nil || cfg.Get("GMAIL_CLIENT_ID") == "" || cfg.Get("GMAIL_CLIENT_SECRET") == "" {
+			app.Logger().Fatal("with GMAIL_REFRESH_TOKEN, set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET and GMAIL_FROM (the Gmail address)")
+		}
+
+		from.Name = cfg.Get("MAIL_FROM_NAME")
+
+		return &sender.Gmail{
+			ClientID: cfg.Get("GMAIL_CLIENT_ID"), ClientSecret: cfg.Get("GMAIL_CLIENT_SECRET"),
+			RefreshToken: cfg.Get("GMAIL_REFRESH_TOKEN"), From: *from,
+		}
+	}
+
+	if host := cfg.Get("SMTP_HOST"); host != "" {
+		from, err := mail.ParseAddress(cfg.Get("SMTP_FROM"))
+		if err != nil {
+			app.Logger().Fatal("SMTP_FROM must be an email address when SMTP_HOST is set")
+		}
+
+		from.Name = cfg.Get("MAIL_FROM_NAME")
+
+		return &sender.SMTP{
+			Host: host, Port: cfg.GetOrDefault("SMTP_PORT", "587"),
+			Username: cfg.Get("SMTP_USERNAME"), Password: cfg.Get("SMTP_PASSWORD"), From: *from,
+		}
+	}
+
+	app.Logger().Warn("neither GMAIL_REFRESH_TOKEN nor SMTP_HOST is set: emails are logged, not delivered")
+
+	return sender.Log{Logger: app.Logger()}
 }

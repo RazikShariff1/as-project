@@ -38,13 +38,13 @@ services:
       - { key: COMMUNICATION_DB_HOST,     sync: false }
       - { key: COMMUNICATION_DB_USER,     sync: false }
       - { key: COMMUNICATION_DB_PASSWORD, sync: false }
-      # Outgoing mail for communication-svc. Without SMTP_HOST emails are only logged, not delivered.
-      - { key: SMTP_HOST,      sync: false }
-      - { key: SMTP_PORT,      value: "587" }
-      - { key: SMTP_USERNAME,  sync: false }
-      - { key: SMTP_PASSWORD,  sync: false }
-      - { key: SMTP_FROM,      sync: false }
-      - { key: SMTP_FROM_NAME, sync: false }
+      # Outgoing mail for communication-svc. Render's free plan blocks SMTP ports, so use the Gmail API (HTTPS). The first
+      # configured of Gmail, then SMTP, is used; with neither, emails are only logged, not delivered.
+      - { key: GMAIL_CLIENT_ID,     sync: false }
+      - { key: GMAIL_CLIENT_SECRET, sync: false }
+      - { key: GMAIL_REFRESH_TOKEN, sync: false }
+      - { key: GMAIL_FROM,          sync: false }
+      - { key: MAIL_FROM_NAME,      sync: false }
       # account-svc creates this first admin on startup while there are no users.
       - { key: ADMIN_EMAIL,           sync: false }
       - { key: ADMIN_PASSWORD,        sync: false }

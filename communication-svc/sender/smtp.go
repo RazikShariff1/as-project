@@ -5,11 +5,9 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"mime"
 	"net"
 	"net/mail"
 	"net/smtp"
-	"strings"
 	"time"
 )
 
@@ -103,21 +101,5 @@ func (s *SMTP) deliver(c *smtp.Client, m *Message) error {
 	return w.Close()
 }
 
-// format builds the MIME message: a single UTF-8 HTML part.
-func (s *SMTP) format(m *Message) []byte {
-	var b strings.Builder
-
-	b.WriteString("From: " + s.From.String() + "\r\n")
-	b.WriteString("To: " + strings.Join(m.To, ", ") + "\r\n")
-
-	if len(m.Cc) > 0 {
-		b.WriteString("Cc: " + strings.Join(m.Cc, ", ") + "\r\n")
-	}
-
-	b.WriteString("Subject: " + mime.QEncoding.Encode("utf-8", m.Subject) + "\r\n")
-	b.WriteString("Date: " + time.Now().Format(time.RFC1123Z) + "\r\n")
-	b.WriteString("MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n")
-	b.WriteString(quotedPrintable(m.HTML))
-
-	return []byte(b.String())
-}
+// format builds the MIME message. Bcc recipients are only on the envelope, never in a header.
+func (s *SMTP) format(m *Message) []byte { return formatMIME(s.From, m, false) }

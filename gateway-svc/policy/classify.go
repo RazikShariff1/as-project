@@ -43,6 +43,8 @@ func routes() []route {
 
 		// Browsing the storefront and logging in need no token. Listings are limited to enabled entries.
 		{account, "POST", "/auth/login", Public, nil},
+		// "Continue with Google": the body is a Google ID token, which account-svc verifies. It still needs no bearer token.
+		{account, "POST", "/auth/google", Public, nil},
 		{catalogue, get, "/product", Public, enabled},
 		{catalogue, get, "/product/{id}", Public, nil},
 		{catalogue, get, "/variant", Public, enabled},

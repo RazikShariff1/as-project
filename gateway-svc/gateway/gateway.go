@@ -32,6 +32,7 @@ const (
 	correlationID = "X-Correlation-Id"
 	loginService  = config.AccountService
 	loginPath     = "/auth/login"
+	googlePath    = "/auth/google"
 )
 
 // Gateway is the proxy middleware.
@@ -139,7 +140,8 @@ func (g *Gateway) serve(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *Gateway) servePublic(w http.ResponseWriter, r *http.Request, target *url.URL, service, rest string, force map[string]string) {
-	if service == loginService && rest == loginPath && !g.limiter.Allow(g.clientIP(r)) {
+	// Password and Google sign-in share one allowance per address, so alternating between them buys no extra attempts.
+	if service == loginService && (rest == loginPath || rest == googlePath) && !g.limiter.Allow(g.clientIP(r)) {
 		writeError(w, http.StatusTooManyRequests, "too many login attempts; try again in a minute")
 
 		return

@@ -28,6 +28,16 @@ func (h *Handler) Login(ctx *gofr.Context) (any, error) {
 	return httpx.Respond(h.service.Login(ctx, &req))
 }
 
+// GoogleLogin exchanges a Google ID token for a session token (201, like Login).
+func (h *Handler) GoogleLogin(ctx *gofr.Context) (any, error) {
+	var req models.GoogleLoginRequest
+	if err := ctx.Bind(&req); err != nil {
+		return nil, httpx.InvalidParam("body")
+	}
+
+	return httpx.Respond(h.service.GoogleLogin(ctx, &req))
+}
+
 // Me returns who the bearer token belongs to.
 func (h *Handler) Me(ctx *gofr.Context) (any, error) {
 	return httpx.Respond(h.service.Authenticate(ctx, authctx.Token(ctx)))

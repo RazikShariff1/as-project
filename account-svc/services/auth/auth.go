@@ -33,6 +33,10 @@ const (
 	lockedMsg      = "too many failed login attempts; try again later"
 	dummyPassword  = "not-a-real-password"
 	bootstrapLimit = 100
+
+	googleOff        = "Google sign-in is not enabled"
+	googleNoAccount  = "no account is linked to this Google email"
+	googleUnverified = "the Google account's email is not verified"
 )
 
 var _ services.Auth = (*Service)(nil)
@@ -46,6 +50,7 @@ type Service struct {
 	ttlSeconds int
 	now        func() time.Time
 	dummyHash  string
+	google     services.GoogleVerifier // nil unless GOOGLE_CLIENT_ID is configured
 }
 
 // New returns an auth service. Sessions live ttlSeconds. It hashes one dummy password up front so a login for an
@@ -61,6 +66,9 @@ func New(users stores.User, roles stores.Role, sessions stores.Session, hasher *
 		ttlSeconds: ttlSeconds, now: time.Now, dummyHash: dummy,
 	}, nil
 }
+
+// EnableGoogle turns on Google sign-in with the verifier that checks ID tokens. Without it GoogleLogin answers 503.
+func (s *Service) EnableGoogle(v services.GoogleVerifier) { s.google = v }
 
 // HashToken returns the SHA-256 of a token as hex. Only this is ever stored.
 func HashToken(token string) string {
@@ -104,6 +112,50 @@ func (s *Service) Login(ctx *gofr.Context, req *models.LoginRequest) (models.Ses
 
 	if err := s.hasher.Compare(creds.PasswordHash, req.Password); err != nil {
 		return models.Session{}, s.failed(ctx, creds.User.ID, err)
+	}
+
+	if creds.User.Status != models.UserStatusActive {
+		return models.Session{}, &apperr.Forbidden{Reason: suspendedMsg}
+	}
+
+	return s.open(ctx, creds.User)
+}
+
+// GoogleLogin exchanges a Google ID token for a session token. Google proves the caller owns a verified email; we then
+// require that email to belong to an existing, active user. It never creates an account (this is an admin panel: a
+// Google account that merely exists must not become a user), and it does not touch the password lockout, which exists to
+// stop password guessing and cannot be reached with a token only Google can sign.
+func (s *Service) GoogleLogin(ctx *gofr.Context, req *models.GoogleLoginRequest) (models.Session, error) {
+	if s.google == nil {
+		return models.Session{}, &apperr.Unavailable{Reason: googleOff}
+	}
+
+	token := strings.TrimSpace(req.IDToken)
+	if token == "" {
+		return models.Session{}, httpx.InvalidParam("idToken")
+	}
+
+	identity, err := s.google.Verify(ctx, token)
+	if err != nil {
+		return models.Session{}, err
+	}
+
+	if !identity.EmailVerified {
+		return models.Session{}, &apperr.Unauthorized{Reason: googleUnverified}
+	}
+
+	email, ok := userservice.NormaliseEmail(identity.Email)
+	if !ok {
+		return models.Session{}, &apperr.Unauthorized{Reason: googleUnverified}
+	}
+
+	creds, err := s.users.Credentials(ctx, email)
+	if errors.Is(err, apperr.ErrNotFound) {
+		return models.Session{}, &apperr.Forbidden{Reason: googleNoAccount}
+	}
+
+	if err != nil {
+		return models.Session{}, httpx.FromStore(err, "email", email)
 	}
 
 	if creds.User.Status != models.UserStatusActive {

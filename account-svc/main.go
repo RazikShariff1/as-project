@@ -6,6 +6,7 @@ import (
 	"gofr.dev/pkg/gofr"
 
 	"github.com/zopping/account-svc/common/authctx"
+	"github.com/zopping/account-svc/common/googleid"
 	"github.com/zopping/account-svc/common/password"
 	authHTTP "github.com/zopping/account-svc/http/auth"
 	endpointHTTP "github.com/zopping/account-svc/http/endpoint"
@@ -44,6 +45,12 @@ func main() {
 		app.Logger().Fatalf("cannot start auth service: %v", err)
 	}
 
+	// Google sign-in is off unless GOOGLE_CLIENT_ID (one OAuth client ID, or several separated by commas) is set.
+	if ids := googleid.ParseClientIDs(app.Config.Get("GOOGLE_CLIENT_ID")); len(ids) > 0 {
+		auth.EnableGoogle(googleid.New(ids...))
+		app.Logger().Infof("Google sign-in enabled for %d client id(s)", len(ids))
+	}
+
 	userHandler := userHTTP.New(userService.New(users, sessions, hasher))
 	roleHandler := roleHTTP.New(roleService.New(roles))
 	endpointHandler := endpointHTTP.New(endpointService.New(endpoints))
@@ -72,6 +79,7 @@ func main() {
 	// This is the surface the gateway and clients call. /auth/check is the gateway's per-request permission check;
 	// login is a POST, so GoFr answers it 201.
 	app.POST("/auth/login", authHandler.Login)
+	app.POST("/auth/google", authHandler.GoogleLogin)
 	app.GET("/auth/me", authHandler.Me)
 	app.GET("/auth/check", authHandler.Check)
 	app.DELETE("/auth/session", authHandler.Logout)

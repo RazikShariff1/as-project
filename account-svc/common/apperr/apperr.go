@@ -49,3 +49,11 @@ func (e *Locked) Error() string { return e.Reason }
 
 // StatusCode makes GoFr answer 429 without any mapping step.
 func (*Locked) StatusCode() int { return http.StatusTooManyRequests }
+
+// Unavailable means the feature is not turned on in this deployment (for example Google sign-in without a client ID).
+type Unavailable struct{ Reason string }
+
+func (e *Unavailable) Error() string { return e.Reason }
+
+// StatusCode makes GoFr answer 503 without any mapping step.
+func (*Unavailable) StatusCode() int { return http.StatusServiceUnavailable }

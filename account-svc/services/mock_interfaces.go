@@ -5,6 +5,7 @@
 package services
 
 import (
+	context "context"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -414,6 +415,21 @@ func (mr *MockAuthMockRecorder) Bootstrap(ctx, email, password interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockAuth)(nil).Bootstrap), ctx, email, password)
 }
 
+// GoogleLogin mocks base method.
+func (m *MockAuth) GoogleLogin(ctx *gofr.Context, req *models.GoogleLoginRequest) (models.Session, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GoogleLogin", ctx, req)
+	ret0, _ := ret[0].(models.Session)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GoogleLogin indicates an expected call of GoogleLogin.
+func (mr *MockAuthMockRecorder) GoogleLogin(ctx, req interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GoogleLogin", reflect.TypeOf((*MockAuth)(nil).GoogleLogin), ctx, req)
+}
+
 // Login mocks base method.
 func (m *MockAuth) Login(ctx *gofr.Context, req *models.LoginRequest) (models.Session, error) {
 	m.ctrl.T.Helper()
@@ -441,4 +457,42 @@ func (m *MockAuth) Logout(ctx *gofr.Context, token string) error {
 func (mr *MockAuthMockRecorder) Logout(ctx, token interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Logout", reflect.TypeOf((*MockAuth)(nil).Logout), ctx, token)
+}
+
+// MockGoogleVerifier is a mock of GoogleVerifier interface.
+type MockGoogleVerifier struct {
+	ctrl     *gomock.Controller
+	recorder *MockGoogleVerifierMockRecorder
+}
+
+// MockGoogleVerifierMockRecorder is the mock recorder for MockGoogleVerifier.
+type MockGoogleVerifierMockRecorder struct {
+	mock *MockGoogleVerifier
+}
+
+// NewMockGoogleVerifier creates a new mock instance.
+func NewMockGoogleVerifier(ctrl *gomock.Controller) *MockGoogleVerifier {
+	mock := &MockGoogleVerifier{ctrl: ctrl}
+	mock.recorder = &MockGoogleVerifierMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockGoogleVerifier) EXPECT() *MockGoogleVerifierMockRecorder {
+	return m.recorder
+}
+
+// Verify mocks base method.
+func (m *MockGoogleVerifier) Verify(ctx context.Context, idToken string) (models.GoogleIdentity, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Verify", ctx, idToken)
+	ret0, _ := ret[0].(models.GoogleIdentity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Verify indicates an expected call of Verify.
+func (mr *MockGoogleVerifierMockRecorder) Verify(ctx, idToken interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Verify", reflect.TypeOf((*MockGoogleVerifier)(nil).Verify), ctx, idToken)
 }

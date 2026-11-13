@@ -16,6 +16,7 @@ import (
 	"github.com/zopping/account-svc/common/authctx"
 	"github.com/zopping/account-svc/common/password"
 	"github.com/zopping/account-svc/models"
+	"github.com/zopping/account-svc/services"
 	"github.com/zopping/account-svc/stores"
 )
 
@@ -421,4 +422,174 @@ func TestBootstrap_ReusesAnExistingAdminRole(t *testing.T) {
 	created, err := f.svc.Bootstrap(f.ctx, "admin@example.com", goodPassword)
 	assert.NoError(t, err)
 	assert.True(t, created)
+}
+
+// ---- Google sign-in
+
+const googleToken = "google.id.token"
+
+// withGoogle turns Google sign-in on with a mock verifier.
+func withGoogle(t *testing.T, f fixture) *services.MockGoogleVerifier {
+	t.Helper()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	v := services.NewMockGoogleVerifier(ctrl)
+	f.svc.EnableGoogle(v)
+
+	return v
+}
+
+func verified(email string) models.GoogleIdentity {
+	return models.GoogleIdentity{Subject: "g-1", Email: email, EmailVerified: true, Name: "Admin"}
+}
+
+func TestGoogleLogin_Success(t *testing.T) {
+	f := setup(t)
+	v := withGoogle(t, f)
+
+	v.EXPECT().Verify(f.ctx, googleToken).Return(verified("  Admin@Example.COM "), nil)
+	f.users.EXPECT().Credentials(f.ctx, "admin@example.com").Return(f.creds(t, models.UserStatusActive), nil)
+	f.users.EXPECT().RecordSuccess(f.ctx, int64(1)).Return(nil)
+
+	var storedHash string
+
+	f.sessions.EXPECT().Create(f.ctx, int64(1), gomock.Any(), 3600, "test-agent", "198.51.100.7").DoAndReturn(
+		func(_ *gofr.Context, _ int64, hash string, _ int, _, _ string) (time.Time, error) {
+			storedHash = hash
+
+			return fixedNow.Add(time.Hour), nil
+		})
+
+	got, err := f.svc.GoogleLogin(f.ctx, &models.GoogleLoginRequest{IDToken: " " + googleToken + " "})
+
+	assert.NoError(t, err)
+	assert.Len(t, got.Token, 43, "the same opaque session token as a password login")
+	assert.Equal(t, HashToken(got.Token), storedHash)
+	assert.Equal(t, int64(1), got.User.ID)
+}
+
+func TestGoogleLogin_NotEnabledIs503AndTouchesNothing(t *testing.T) {
+	f := setup(t) // no EnableGoogle
+
+	_, err := f.svc.GoogleLogin(f.ctx, &models.GoogleLoginRequest{IDToken: googleToken})
+
+	var unavailable *apperr.Unavailable
+
+	assert.ErrorAs(t, err, &unavailable)
+}
+
+func TestGoogleLogin_MissingTokenIs400(t *testing.T) {
+	f := setup(t)
+	withGoogle(t, f)
+
+	_, err := f.svc.GoogleLogin(f.ctx, &models.GoogleLoginRequest{IDToken: "   "})
+
+	assert.Error(t, err)
+	assert.NotErrorAs(t, err, new(*apperr.Unauthorized))
+}
+
+func TestGoogleLogin_BadTokenIs401AndTouchesNothing(t *testing.T) {
+	f := setup(t)
+	v := withGoogle(t, f)
+
+	v.EXPECT().Verify(f.ctx, googleToken).Return(models.GoogleIdentity{}, &apperr.Unauthorized{Reason: "invalid Google token"})
+
+	_, err := f.svc.GoogleLogin(f.ctx, &models.GoogleLoginRequest{IDToken: googleToken})
+
+	var unauthorized *apperr.Unauthorized
+
+	assert.ErrorAs(t, err, &unauthorized)
+}
+
+func TestGoogleLogin_GoogleOutageIsNotA401(t *testing.T) {
+	f := setup(t)
+	v := withGoogle(t, f)
+
+	outage := errors.New("fetching Google signing keys: status 502")
+	v.EXPECT().Verify(f.ctx, googleToken).Return(models.GoogleIdentity{}, outage)
+
+	_, err := f.svc.GoogleLogin(f.ctx, &models.GoogleLoginRequest{IDToken: googleToken})
+
+	assert.ErrorIs(t, err, outage)
+	assert.NotErrorAs(t, err, new(*apperr.Unauthorized))
+}
+
+func TestGoogleLogin_UnverifiedEmailIsRefused(t *testing.T) {
+	f := setup(t)
+	v := withGoogle(t, f)
+
+	id := verified("a@example.com")
+	id.EmailVerified = false
+	v.EXPECT().Verify(f.ctx, googleToken).Return(id, nil)
+
+	_, err := f.svc.GoogleLogin(f.ctx, &models.GoogleLoginRequest{IDToken: googleToken})
+
+	var unauthorized *apperr.Unauthorized
+
+	assert.ErrorAs(t, err, &unauthorized, "an unverified email proves nothing; no lookup happens")
+}
+
+// The important one: a Google account whose email is not a user must NOT become one. The strict mocks fail this test if
+// the service ever calls Create, RecordSuccess or sessions.Create.
+func TestGoogleLogin_UnknownEmailIsForbiddenAndCreatesNothing(t *testing.T) {
+	f := setup(t)
+	v := withGoogle(t, f)
+
+	v.EXPECT().Verify(f.ctx, googleToken).Return(verified("stranger@example.com"), nil)
+	f.users.EXPECT().Credentials(f.ctx, "stranger@example.com").Return(models.Credentials{}, apperr.ErrNotFound)
+
+	_, err := f.svc.GoogleLogin(f.ctx, &models.GoogleLoginRequest{IDToken: googleToken})
+
+	var forbidden *apperr.Forbidden
+
+	assert.ErrorAs(t, err, &forbidden)
+}
+
+func TestGoogleLogin_SuspendedAccountIsForbidden(t *testing.T) {
+	f := setup(t)
+	v := withGoogle(t, f)
+
+	v.EXPECT().Verify(f.ctx, googleToken).Return(verified("a@example.com"), nil)
+	f.users.EXPECT().Credentials(f.ctx, "a@example.com").Return(f.creds(t, models.UserStatusSuspended), nil)
+
+	_, err := f.svc.GoogleLogin(f.ctx, &models.GoogleLoginRequest{IDToken: googleToken})
+
+	var forbidden *apperr.Forbidden
+
+	assert.ErrorAs(t, err, &forbidden)
+}
+
+// Lockout stops password guessing. A token only Google can sign is not a guess, so a locked account can still use it.
+func TestGoogleLogin_IgnoresPasswordLockout(t *testing.T) {
+	f := setup(t)
+	v := withGoogle(t, f)
+
+	creds := f.creds(t, models.UserStatusActive)
+	until := fixedNow.Add(10 * time.Minute)
+	creds.LockedUntil = &until
+
+	v.EXPECT().Verify(f.ctx, googleToken).Return(verified("a@example.com"), nil)
+	f.users.EXPECT().Credentials(f.ctx, "a@example.com").Return(creds, nil)
+	f.users.EXPECT().RecordSuccess(f.ctx, int64(1)).Return(nil)
+	f.sessions.EXPECT().Create(f.ctx, int64(1), gomock.Any(), 3600, gomock.Any(), gomock.Any()).Return(fixedNow.Add(time.Hour), nil)
+
+	_, err := f.svc.GoogleLogin(f.ctx, &models.GoogleLoginRequest{IDToken: googleToken})
+
+	assert.NoError(t, err)
+}
+
+func TestGoogleLogin_StoreFailureIsNotMistakenForNoAccount(t *testing.T) {
+	f := setup(t)
+	v := withGoogle(t, f)
+
+	boom := errors.New("connection refused")
+	v.EXPECT().Verify(f.ctx, googleToken).Return(verified("a@example.com"), nil)
+	f.users.EXPECT().Credentials(f.ctx, "a@example.com").Return(models.Credentials{}, boom)
+
+	_, err := f.svc.GoogleLogin(f.ctx, &models.GoogleLoginRequest{IDToken: googleToken})
+
+	assert.ErrorIs(t, err, boom)
+	assert.NotErrorAs(t, err, new(*apperr.Forbidden))
 }

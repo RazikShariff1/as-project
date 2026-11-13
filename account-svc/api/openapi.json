@@ -795,6 +795,50 @@
         }
       }
     },
+    "/auth/google": {
+      "post": {
+        "summary": "Exchange a Google ID token for a session token (201), the same session as /auth/login. Google proves the caller owns a verified email; that email must belong to an existing, active user. An account is never created, and the password lockout does not apply.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleLoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Session"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "idToken missing"
+          },
+          "401": {
+            "description": "The token is forged, expired, issued for another app, or its email is not verified"
+          },
+          "403": {
+            "description": "No account is linked to this Google email, or the account is suspended"
+          },
+          "503": {
+            "description": "Google sign-in is not enabled (GOOGLE_CLIENT_ID is not set)"
+          }
+        }
+      }
+    },
     "/auth/me": {
       "get": {
         "summary": "Who the bearer token belongs to",
@@ -1206,6 +1250,15 @@
           },
           "password": {
             "type": "string"
+          }
+        }
+      },
+      "GoogleLoginRequest": {
+        "type": "object",
+        "properties": {
+          "idToken": {
+            "type": "string",
+            "description": "The credential (a signed JWT) Google Identity Services returns after the user picks an account"
           }
         }
       },

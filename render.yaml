@@ -49,6 +49,9 @@ services:
       - { key: STORE_NAME,      value: Zopping }
       - { key: CURRENCY_SYMBOL, value: "₹" }
       - { key: SUPPORT_EMAIL,   sync: false }
+      # "Continue with Google" on the sign-in page. The OAuth client ID (public; no client secret is needed) of the Web
+      # application client whose authorised JavaScript origins include the admin's URL. Unset, /auth/google answers 503.
+      - { key: GOOGLE_CLIENT_ID,      sync: false }
       # account-svc creates this first admin on startup while there are no users.
       - { key: ADMIN_EMAIL,           sync: false }
       - { key: ADMIN_PASSWORD,        sync: false }

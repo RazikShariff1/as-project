@@ -20,6 +20,7 @@ func TestAuthErrorsCarryTheirOwnHTTPStatus(t *testing.T) {
 		{&Unauthorized{Reason: "invalid credentials"}, http.StatusUnauthorized},
 		{&Forbidden{Reason: "account is suspended"}, http.StatusForbidden},
 		{&Locked{Reason: "too many failed login attempts"}, http.StatusTooManyRequests},
+		{&Unavailable{Reason: "google sign-in is not enabled"}, http.StatusServiceUnavailable},
 	}
 
 	for _, tc := range tests {

@@ -330,6 +330,26 @@ func TestAuthOnlyRoutesCheckTheTokenButNotTheEndpoint(t *testing.T) {
 	assert.Equal(t, 401, r.do("DELETE", "/api/account-svc/auth/session", "wrong", "").Code)
 }
 
+func TestGoogleLoginIsPublicAndSharesTheLoginRateLimit(t *testing.T) {
+	r := newRig(t) // limit: 2 a minute
+
+	post := func(path string) int {
+		req := httptest.NewRequest("POST", path, strings.NewReader(`{"idToken":"x"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "10.0.0.1:1111"
+
+		w := httptest.NewRecorder()
+		r.h.ServeHTTP(w, req)
+
+		return w.Code
+	}
+
+	assert.Equal(t, 200, post("/api/account-svc/auth/google"), "reachable without a bearer token")
+	assert.Equal(t, 200, post("/api/account-svc/auth/login"))
+	assert.Equal(t, 429, post("/api/account-svc/auth/google"), "password and Google attempts draw on the same allowance")
+	assert.Equal(t, 2, r.account.calls, "the limited attempt never reached account-svc")
+}
+
 func TestLoginIsPublicAndRateLimitedPerAddress(t *testing.T) {
 	r := newRig(t) // limit: 2 a minute
 

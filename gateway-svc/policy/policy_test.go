@@ -43,6 +43,7 @@ func TestClassify(t *testing.T) {
 		force                 map[string]string
 	}{
 		{"account-svc", "POST", "/auth/login", Public, nil},
+		{"account-svc", "POST", "/auth/google", Public, nil},
 		{"catalogue-svc", "GET", "/product", Public, map[string]string{"status": "ENABLED"}},
 		{"catalogue-svc", "GET", "/product/42", Public, nil},
 		{"catalogue-svc", "GET", "/brand", Public, map[string]string{"status": "ENABLED"}},

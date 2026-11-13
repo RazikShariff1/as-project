@@ -8,6 +8,20 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+// GoogleLoginRequest exchanges a Google ID token (the signed JWT Google Identity Services hands the browser) for a
+// session token.
+type GoogleLoginRequest struct {
+	IDToken string `json:"idToken"`
+}
+
+// GoogleIdentity is what a verified Google ID token vouches for.
+type GoogleIdentity struct {
+	Subject       string
+	Email         string
+	EmailVerified bool
+	Name          string
+}
+
 // Session is returned once, at login. The token cannot be recovered later; only its hash is stored.
 type Session struct {
 	Token     string    `json:"token"`

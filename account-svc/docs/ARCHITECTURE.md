@@ -58,6 +58,25 @@ ever needed.
 - **Statuses:** 401 means authenticate again, 403 means authenticated but not allowed, 429 means locked. The auth error
   types implement `StatusCode()` themselves; GoFr answers 500 for any error that does not.
 
+## Google sign-in
+
+`POST /auth/google` takes `{ "idToken": "..." }`, the credential Google Identity Services gives the browser, and answers
+exactly like `/auth/login` (201, same opaque session token). It is off until `GOOGLE_CLIENT_ID` is set (one OAuth client ID,
+or several separated by commas); until then it answers 503.
+
+- **Verification** (`common/googleid`): the token must be an RS256 JWT signed by one of Google's published keys
+  (`https://www.googleapis.com/oauth2/v3/certs`, cached per Google's `Cache-Control`, refetched at most once a minute when an
+  unknown key id appears), issued by `accounts.google.com`, for one of our client IDs (`aud`), unexpired, with an email. Other
+  algorithms (HS256, `none`) are refused, which closes the algorithm-confusion attack. No client secret is needed or used.
+- **Who may sign in:** the verified email must already belong to an active user. Nothing is ever created (this is an admin
+  panel, so a Google account that merely exists must not become a user); an unknown email is 403, a suspended user 403, an
+  unverified email 401.
+- **Lockout:** the password lockout does not apply. It exists to stop password guessing, and a token only Google can sign is
+  not a guess.
+- **Failures:** a forged or foreign token is 401. If Google's keys cannot be fetched the answer is 500, not 401, because
+  it is not the caller's fault.
+- **Gateway:** `/auth/google` is a Public route (no bearer token), rate-limited per address together with `/auth/login`.
+
 ## Authorisation
 
 `GET /auth/check` authenticates the token, then loads the patterns of the endpoints the user's roles grant for that
@@ -89,7 +108,8 @@ first login.
 ## Not built yet
 
 - Refresh tokens, "remember me", and listing a user's active sessions.
-- Password reset by email or SMS, OTP, social login, MFA (the reference auth-service has OTP and social login).
+- Password reset by email or SMS, OTP, MFA, and social providers other than Google (the reference auth-service has OTP and
+  social login). Google sign-in cannot create users or link a Google identity to an account; it matches on verified email.
 - Protection against deleting or demoting the last admin.
 - Per-IP rate limiting (only per-account lockout exists).
 - An audit log of logins and permission changes.

@@ -6,6 +6,8 @@ import (
 
 	"gofr.dev/pkg/gofr"
 
+	"github.com/zopping/order-svc/clients/catalogue"
+	"github.com/zopping/order-svc/clients/customer"
 	"github.com/zopping/order-svc/common/apperr"
 	"github.com/zopping/order-svc/common/caller"
 	"github.com/zopping/order-svc/common/httpx"
@@ -17,13 +19,18 @@ import (
 )
 
 type service struct {
-	store stores.Order
+	store     stores.Order
+	customers customer.Client
+	catalogue catalogue.Client
 }
 
-// New returns the order read service.
-func New(store stores.Order) services.Order { return &service{store: store} }
+// New returns the order read service. A nil customers or catalogue client leaves that part out of the answers.
+func New(store stores.Order, customers customer.Client, catalogue catalogue.Client) services.Order {
+	return &service{store: store, customers: customers, catalogue: catalogue}
+}
 
-// Find returns a page of orders and how many match; the page and the count are read at the same time.
+// Find returns a page of orders and how many match; the page and the count are read at the same time. Each order then gets its
+// customer (and item names) from the other services, all at the same time.
 func (s *service) Find(ctx *gofr.Context, filter *filters.OrderDetails, pagination *models.Pagination) (*models.OrderList, error) {
 	if id, restricted := caller.Customer(ctx); restricted {
 		filter.CustomerID = id
@@ -51,11 +58,18 @@ func (s *service) Find(ctx *gofr.Context, filter *filters.OrderDetails, paginati
 		return nil, httpx.FromStore(err, "order", "")
 	}
 
-	return &models.OrderList{Orders: orders, Count: count, Offset: pagination.Offset, Limit: pagination.Limit}, nil
+	details := make([]*models.OrderDetails, 0, len(orders))
+	for _, o := range orders {
+		details = append(details, &models.OrderDetails{Order: o})
+	}
+
+	s.appendExtraFields(ctx, details, filter)
+
+	return &models.OrderList{Orders: details, Count: count, Offset: pagination.Offset, Limit: pagination.Limit}, nil
 }
 
 // Read returns one order, or a 404 if it is not the caller's.
-func (s *service) Read(ctx *gofr.Context, filter *filters.OrderDetails) (*models.Order, error) {
+func (s *service) Read(ctx *gofr.Context, filter *filters.OrderDetails) (*models.OrderDetails, error) {
 	ref := filter.ReferenceNumbers[0]
 
 	o, err := s.store.Retrieve(ctx, ref)
@@ -67,5 +81,9 @@ func (s *service) Read(ctx *gofr.Context, filter *filters.OrderDetails) (*models
 		return nil, httpx.FromStoreID(apperr.ErrNotFound, "order", ref)
 	}
 
-	return o, nil
+	details := []*models.OrderDetails{{Order: o}}
+
+	s.appendExtraFields(ctx, details, filter)
+
+	return details[0], nil
 }

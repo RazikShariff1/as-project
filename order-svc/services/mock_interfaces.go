@@ -52,10 +52,10 @@ func (mr *MockOrderMockRecorder) Find(ctx, filter, pagination interface{}) *gomo
 }
 
 // Read mocks base method.
-func (m *MockOrder) Read(ctx *gofr.Context, filter *filters.OrderDetails) (*models.Order, error) {
+func (m *MockOrder) Read(ctx *gofr.Context, filter *filters.OrderDetails) (*models.OrderDetails, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Read", ctx, filter)
-	ret0, _ := ret[0].(*models.Order)
+	ret0, _ := ret[0].(*models.OrderDetails)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

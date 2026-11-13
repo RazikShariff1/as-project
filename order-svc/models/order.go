@@ -117,12 +117,44 @@ type Pagination struct {
 	Offset int
 }
 
+// Customer is the shopper behind an order, as customer-svc knows them.
+type Customer struct {
+	ID    int64  `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+	Phone string `json:"phone"`
+}
+
+// CatalogueVariant and CatalogueProduct are the parts of catalogue-svc's answers the order reads need.
+type CatalogueVariant struct {
+	Name      string `json:"name"`
+	ProductID int64  `json:"productId"`
+}
+
+type CatalogueProduct struct {
+	Name string `json:"name"`
+}
+
+// OrderItemDetails is an order line as the reads answer it: the line itself plus its name from catalogue-svc.
+type OrderItemDetails struct {
+	OrderItem
+	Name string `json:"name,omitempty"`
+}
+
+// OrderDetails is an order as the reads answer it: the order plus what other services know about it. Customer and the item names
+// are best effort; when their service does not answer they are left out and the read still succeeds.
+type OrderDetails struct {
+	*Order
+	Customer *Customer           `json:"customer,omitempty"`
+	Items    []*OrderItemDetails `json:"items"`
+}
+
 // OrderList is a page of orders with the total match count, as {"count", "order": [...]}.
 type OrderList struct {
-	Count  int      `json:"count"`
-	Offset int      `json:"offset"`
-	Limit  int      `json:"limit"`
-	Orders []*Order `json:"order"`
+	Count  int             `json:"count"`
+	Offset int             `json:"offset"`
+	Limit  int             `json:"limit"`
+	Orders []*OrderDetails `json:"order"`
 }
 
 // OrderItemRequest asks for Quantity selling units of one seller's offer for a variant.

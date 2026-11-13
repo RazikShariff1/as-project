@@ -18,6 +18,10 @@ type OrderDetails struct {
 	UpdatedSince time.Time
 	// SellerID keeps orders with at least one item from that seller.
 	SellerID int64
+	// ExcludeCustomerDetail leaves the shopper's details out of the answer, which saves the call to customer-svc.
+	ExcludeCustomerDetail bool
+	// IncludeItemNames adds each item's product name from catalogue-svc (query slice=items).
+	IncludeItemNames bool
 }
 
 const day = 24 * time.Hour

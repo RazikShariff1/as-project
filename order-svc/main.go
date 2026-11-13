@@ -5,7 +5,9 @@ import (
 
 	"gofr.dev/pkg/gofr"
 
+	"github.com/zopping/order-svc/clients/catalogue"
 	"github.com/zopping/order-svc/clients/communication"
+	"github.com/zopping/order-svc/clients/customer"
 	"github.com/zopping/order-svc/clients/inventory"
 	"github.com/zopping/order-svc/clients/lookup"
 	"github.com/zopping/order-svc/common/caller"
@@ -45,29 +47,30 @@ func main() {
 		app.Logger().Fatal("RESERVATION_TTL_SECONDS must be between 1 and 86400")
 	}
 
-	// A new order is confirmed to the shopper and announced to the owner (ADMIN_EMAIL) by email, through communication-svc. The shopper's
-	// address and the product names come from customer-svc and catalogue-svc. Without COMMUNICATION_SERVICE_URL none are sent.
+	// Order reads carry the shopper's name and item names, so the frontend needs one call, not one per order and item.
+	app.AddHTTPService(customerServiceName, app.Config.GetOrDefault("CUSTOMER_SERVICE_URL", "http://localhost:8085"))
+	app.AddHTTPService(catalogueServiceName, app.Config.GetOrDefault("CATALOGUE_SERVICE_URL", "http://localhost:8081"))
+
+	lookups := &lookup.HTTP{Customers: customerServiceName, Catalogue: catalogueServiceName}
+
 	var notifier communication.Notifier = communication.Nop{}
 
 	if url := app.Config.Get("COMMUNICATION_SERVICE_URL"); url != "" {
 		app.AddHTTPService(communicationServiceName, url)
-		app.AddHTTPService(customerServiceName, app.Config.GetOrDefault("CUSTOMER_SERVICE_URL", "http://localhost:8085"))
-		app.AddHTTPService(catalogueServiceName, app.Config.GetOrDefault("CATALOGUE_SERVICE_URL", "http://localhost:8081"))
 
 		notifier = &communication.HTTP{
-			Service: communicationServiceName, Lookup: &lookup.HTTP{Customers: customerServiceName, Catalogue: catalogueServiceName},
+			Service: communicationServiceName, Lookup: lookups,
 			Owner: app.Config.Get("ADMIN_EMAIL"), StoreName: app.Config.GetOrDefault("STORE_NAME", "Zopping"),
 			SupportEmail: app.Config.Get("SUPPORT_EMAIL"), Currency: app.Config.GetOrDefault("CURRENCY_SYMBOL", "₹"),
 		}
 	}
 
-	// Stores -> services -> handlers.
 	var (
 		orderStr   = orderStore.New()
 		inv        = inventory.New(inventoryServiceName)
 		orderLogH  = orderLogHTTP.New(orderLogService.New(orderLogStore.New()))
 		placeH     = placeOrderHTTP.New(placeOrderService.WithNotifier(placeOrderService.New(orderStr, inv, ttl), notifier))
-		orderH     = orderHTTP.New(orderService.New(orderStr))
+		orderH     = orderHTTP.New(orderService.New(orderStr, customer.New(customerServiceName), catalogue.New(catalogueServiceName)))
 		orderPatch = orderHandlers.NewOrderHandler(orderPatchService.New(orderStr, inv, ttl))
 	)
 
@@ -75,9 +78,7 @@ func main() {
 	app.POST("/order", placeH.Create)
 	app.GET("/order", orderH.Index)
 	app.GET("/order/{refNum}", orderH.Read)
-	// One PATCH changes an order: status (cancel included), items, payment status, delivery details and metadata.
 	app.PATCH("/order/{refNum}", orderPatch.Patch)
-	// An order's history is a resource of its own, as in the reference: GET /order-log?orderReferenceNumber=.
 	app.GET("/order-log", orderLogH.Index)
 	app.POST("/order-log", orderLogH.Create)
 

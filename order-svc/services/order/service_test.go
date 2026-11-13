@@ -23,7 +23,7 @@ func setup(t *testing.T) (*stores.MockOrder, *service) {
 
 	store := stores.NewMockOrder(ctrl)
 
-	return store, New(store).(*service)
+	return store, New(store, nil, nil).(*service)
 }
 
 func TestACustomerCannotReadAnotherCustomersOrder(t *testing.T) {

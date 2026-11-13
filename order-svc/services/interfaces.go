@@ -10,10 +10,10 @@ import (
 
 // Order is the read side of orders. Changing an order is internal/orders/services.
 type Order interface {
-	// Find returns a page of orders. A customer only ever gets their own, whatever the filter says.
+	// Find returns a page of orders with their customers (and item names if asked). A customer only ever gets their own, whatever the filter says.
 	Find(ctx *gofr.Context, filter *filters.OrderDetails, pagination *models.Pagination) (*models.OrderList, error)
 	// Read returns the order with the reference number in filter.ReferenceNumbers[0], or a 404 if it is not the caller's.
-	Read(ctx *gofr.Context, filter *filters.OrderDetails) (*models.Order, error)
+	Read(ctx *gofr.Context, filter *filters.OrderDetails) (*models.OrderDetails, error)
 }
 
 // PlaceOrder places orders.

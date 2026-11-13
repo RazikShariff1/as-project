@@ -25,3 +25,5 @@ generate-mocks:
 	$(MOCKGEN) -source=services/interfaces.go -destination=services/mock_interfaces.go -package=services
 	$(MOCKGEN) -source=internal/orders/services/interface.go -destination=internal/orders/services/mock_interfaces.go -package=services
 	$(MOCKGEN) -source=clients/inventory/inventory.go -destination=clients/inventory/mock_inventory.go -package=inventory
+	$(MOCKGEN) -source=clients/customer/customer.go -destination=clients/customer/mock_customer.go -package=customer
+	$(MOCKGEN) -source=clients/catalogue/catalogue.go -destination=clients/catalogue/mock_catalogue.go -package=catalogue

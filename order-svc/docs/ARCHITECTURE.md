@@ -7,13 +7,15 @@ http/order              GET /order (Index), GET /order/{refNum} (Read): query ->
 http/placeorder         POST /order (Create): body -> OrderPlaceCreateHTTP -> getOrderPlaceCreateSvc -> service
 http/orderlog           GET /order-log (Index: Count + Find), POST /order-log (Create: GetOrderID -> Create)
 internal/orders/handlers  PATCH /order/{refNum}: body -> PatchOrder -> PatchOrderPayload -> service
-services/order          Find (page + count), Read: who may see what
+services/order          Find (page + count), Read: who may see what; functions.go appendExtraFields adds customer and item names in parallel
 services/placeorder     Create: validateOrderCreate -> getPlacedOrder -> processOrderItems -> reserveStock -> createOrderLogs -> store.Create
 services/orderlog       Count, Find, Create, GetOrderID
 internal/orders/services  Patch: load -> DeepCopy -> processStatusChange -> updateOrderItems -> address/notes/metadata -> updatePayment -> store.Update -> publishPatchEvents
 stores/order            Index, Count, Retrieve, GetByClientID, Create, Update (the whole order, its items and its new logs in one transaction)
 stores/orderlog         Create, GetOrderID, Count, Find
 clients/inventory       inventory-svc over HTTP: offer (price), reserve, confirm, release
+clients/customer        customer-svc over HTTP: customer by id (order reads)
+clients/catalogue       catalogue-svc over HTTP: variant and product by id (item names on order reads)
 utils                   pricing, order references, request checks, history rows
 ```
 
@@ -59,7 +61,7 @@ reference is then released. If the save fails the new reservation is released; i
 
 ## Latency
 
-An order's items come back inside its row (`json_agg`), so a read is one query; a list runs its page query and its count at the same time, and so does a history read. Place reads offers in parallel and writes
+An order's items come back inside its row (`json_agg`), so a read is one query; a list runs its page query and its count at the same time, and so does a history read. Order reads (list and detail) then add the customer (`customer`) and, with `slice=items`, each item's `name`, as the reference's `findAppendExtraFields` does: customer-svc and catalogue-svc are asked at the same time (customers in parallel; variants in parallel, then their products in parallel; at most 8 calls at once), best effort with a 3s timeout, so a slow sibling leaves those parts out and never fails the read. `excludeCustomerDetail=true` skips the customer call. Place reads offers in parallel and writes
 items and history in single statements; a PATCH is one load, then lock, update, history and read in one transaction.
 
 ## Who may do what

@@ -61,9 +61,24 @@ func orderFilter(ctx *gofr.Context) (*filters.OrderDetails, error) {
 		return nil, err
 	}
 
-	filter.UpdatedSince, err = getUpdatedSince(ctx.Param("updatedSince"))
+	if filter.UpdatedSince, err = getUpdatedSince(ctx.Param("updatedSince")); err != nil {
+		return nil, err
+	}
 
-	return filter, err
+	if filter.ExcludeCustomerDetail, err = httpx.QueryBool(ctx, "excludeCustomerDetail"); err != nil {
+		return nil, err
+	}
+
+	// slice names the extra parts of an order to add to the answer; "items" adds each item's name.
+	for _, part := range split(ctx.Param("slice")) {
+		if !strings.EqualFold(part, "items") {
+			return nil, httpx.InvalidParam("slice")
+		}
+
+		filter.IncludeItemNames = true
+	}
+
+	return filter, nil
 }
 
 // updatedSinceLayouts are the formats updatedSince may be sent in.

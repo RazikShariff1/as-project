@@ -39,9 +39,9 @@ func TestFindAddsCustomersAndItemNames(t *testing.T) {
 	store.EXPECT().Count(gomock.Any(), gomock.Any()).Return(2, nil)
 
 	customers.EXPECT().Customer(gomock.Any(), int64(6)).Return(&models.Customer{ID: 6, Name: "Asha"}, nil).Times(1)
-	cat.EXPECT().Variant(gomock.Any(), int64(11)).Return(&models.CatalogueVariant{Name: "1L", ProductID: 3}, nil).Times(1)
+	cat.EXPECT().Variant(gomock.Any(), int64(11)).Return(&models.CatalogueVariant{Name: "1L", ProductID: 3, ClientItemID: "MILK-1L", Images: []string{"v.png"}}, nil).Times(1)
 	cat.EXPECT().Variant(gomock.Any(), int64(12)).Return(nil, errors.New("down")).Times(1)
-	cat.EXPECT().Product(gomock.Any(), int64(3)).Return(&models.CatalogueProduct{Name: "Milk"}, nil).Times(1)
+	cat.EXPECT().Product(gomock.Any(), int64(3)).Return(&models.CatalogueProduct{Name: "Milk", HasVariants: true, Images: []string{"p.png"}}, nil).Times(1)
 
 	list, err := svc.Find(testutil.CtxAs(t, testutil.Staff), &filters.OrderDetails{IncludeItemNames: true}, &models.Pagination{Limit: 20})
 
@@ -49,6 +49,8 @@ func TestFindAddsCustomersAndItemNames(t *testing.T) {
 	assert.Equal(t, "Asha", list.Orders[0].Customer.Name)
 	assert.Equal(t, "Asha", list.Orders[1].Customer.Name, "one customer is read once however many orders they have")
 	assert.Equal(t, "Milk - 1L", list.Orders[0].Items[0].Name)
+	assert.Equal(t, "MILK-1L", list.Orders[0].Items[0].SKU)
+	assert.Equal(t, "v.png", list.Orders[0].Items[0].ImageURL)
 	assert.Empty(t, list.Orders[0].Items[1].Name, "a variant that could not be read is left unnamed, the read still works")
 }
 

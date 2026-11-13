@@ -22,7 +22,7 @@ func (s *service) appendExtraFields(ctx *gofr.Context, orders []*models.OrderDet
 	var (
 		wg                   sync.WaitGroup
 		customerIDToCustomer map[int64]*models.Customer
-		variantIDToName      map[int64]string
+		variantIDToInfo      map[int64]models.ItemInfo
 	)
 
 	if !filter.ExcludeCustomerDetail && s.customers != nil {
@@ -41,7 +41,7 @@ func (s *service) appendExtraFields(ctx *gofr.Context, orders []*models.OrderDet
 		go func() {
 			defer wg.Done()
 
-			variantIDToName = s.getVariantIDToName(ctx, uniqueVariantIDs(orders))
+			variantIDToInfo = s.getVariantIDToInfo(ctx, uniqueVariantIDs(orders))
 		}()
 	}
 
@@ -52,7 +52,7 @@ func (s *service) appendExtraFields(ctx *gofr.Context, orders []*models.OrderDet
 		o.Items = make([]*models.OrderItemDetails, 0, len(o.Order.Items))
 
 		for _, it := range o.Order.Items {
-			o.Items = append(o.Items, &models.OrderItemDetails{OrderItem: it, Name: variantIDToName[it.VariantID]})
+			o.Items = append(o.Items, itemDetails(it, variantIDToInfo[it.VariantID]))
 		}
 	}
 }
@@ -89,14 +89,14 @@ func (s *service) getCustomerIDToCustomer(ctx *gofr.Context, ids []int64) map[in
 	return result
 }
 
-// getVariantIDToName reads each variant from catalogue-svc in parallel, then the products they belong to in parallel, and joins them
-// as "Product - Variant". A variant that could not be read is left out.
-func (s *service) getVariantIDToName(ctx *gofr.Context, variantIDs []int64) map[int64]string {
+// getVariantIDToInfo reads each variant from catalogue-svc in parallel, then the products they belong to in parallel. The name is the
+// product's, then " - " and the variant's if the product has several. A variant that could not be read is left out.
+func (s *service) getVariantIDToInfo(ctx *gofr.Context, variantIDs []int64) map[int64]models.ItemInfo {
 	var (
 		mu       sync.Mutex
 		g        errgroup.Group
 		variants = make(map[int64]*models.CatalogueVariant, len(variantIDs))
-		products = make(map[int64]string)
+		products = make(map[int64]*models.CatalogueProduct)
 	)
 
 	g.SetLimit(maxParallel)
@@ -135,7 +135,7 @@ func (s *service) getVariantIDToName(ctx *gofr.Context, variantIDs []int64) map[
 			}
 
 			mu.Lock()
-			products[id] = p.Name
+			products[id] = p
 			mu.Unlock()
 
 			return nil
@@ -144,24 +144,45 @@ func (s *service) getVariantIDToName(ctx *gofr.Context, variantIDs []int64) map[
 
 	_ = g.Wait()
 
-	names := make(map[int64]string, len(variants))
+	info := make(map[int64]models.ItemInfo, len(variants))
+
 	for id, v := range variants {
-		names[id] = joinName(products[v.ProductID], v.Name)
+		p := products[v.ProductID]
+		if p == nil {
+			p = &models.CatalogueProduct{}
+		}
+
+		it := models.ItemInfo{Name: joinName(p.Name, v.Name, p.HasVariants), SKU: v.ClientItemID}
+
+		if len(v.Images) > 0 {
+			it.ImageURL = v.Images[0]
+		} else if len(p.Images) > 0 {
+			it.ImageURL = p.Images[0]
+		}
+
+		info[id] = it
 	}
 
-	return names
+	return info
 }
 
-func joinName(product, variant string) string {
-	var parts []string
+// itemDetails is one order line with its catalogue details; a line without any is returned as it is.
+func itemDetails(it models.OrderItem, info models.ItemInfo) *models.OrderItemDetails {
+	return &models.OrderItemDetails{OrderItem: it, Name: info.Name, SKU: info.SKU, ImageURL: info.ImageURL}
+}
 
-	for _, p := range []string{product, variant} {
-		if p = strings.TrimSpace(p); p != "" {
-			parts = append(parts, p)
-		}
+// joinName is the product's name, with the variant's after it when the product has several variants.
+func joinName(product, variant string, hasVariants bool) string {
+	product, variant = strings.TrimSpace(product), strings.TrimSpace(variant)
+
+	switch {
+	case product == "":
+		return variant
+	case variant == "" || !hasVariants:
+		return product
+	default:
+		return product + " - " + variant
 	}
-
-	return strings.Join(parts, " - ")
 }
 
 func uniqueCustomerIDs(orders []*models.OrderDetails) []int64 {

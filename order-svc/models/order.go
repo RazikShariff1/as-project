@@ -127,18 +127,32 @@ type Customer struct {
 
 // CatalogueVariant and CatalogueProduct are the parts of catalogue-svc's answers the order reads need.
 type CatalogueVariant struct {
-	Name      string `json:"name"`
-	ProductID int64  `json:"productId"`
+	Name         string   `json:"name"`
+	ProductID    int64    `json:"productId"`
+	ClientItemID string   `json:"clientItemId"`
+	Images       []string `json:"images"`
 }
 
 type CatalogueProduct struct {
-	Name string `json:"name"`
+	Name        string   `json:"name"`
+	HasVariants bool     `json:"hasVariants"`
+	Images      []string `json:"images"`
 }
 
-// OrderItemDetails is an order line as the reads answer it: the line itself plus its name from catalogue-svc.
+// OrderItemDetails is an order line as the reads answer it: the line itself plus what catalogue-svc knows about it. Name is the
+// product's, followed by the variant's when the product has several.
 type OrderItemDetails struct {
 	OrderItem
-	Name string `json:"name,omitempty"`
+	Name     string `json:"name,omitempty"`
+	SKU      string `json:"sku,omitempty"`
+	ImageURL string `json:"imageUrl,omitempty"`
+}
+
+// ItemInfo is what catalogue-svc says about one variant, for the item lines of an order read.
+type ItemInfo struct {
+	Name     string
+	SKU      string
+	ImageURL string
 }
 
 // OrderDetails is an order as the reads answer it: the order plus what other services know about it. Customer and the item names
